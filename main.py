@@ -2,6 +2,8 @@
 import csv
 import json
 import os
+import sys
+import multiprocessing
 from datetime import datetime
 
 ##ファイル名,データ配列,保存したいキー値
@@ -10,7 +12,7 @@ def write_csv(fname,data,keys):
      
     with open(fname, mode='w') as f:
         data.insert(0,header)
-        writer = csv.DictWriter(f, keys, extrasaction='ignore')
+        writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")
         writer.writerows(data)
 
 ##jsonのデコード
@@ -27,7 +29,11 @@ def decode_json(file):
 ##        距離は以下のように取得、単位はm
 ##        print(fenrifja_dic['segmentEffortData']['distance'])
         f.close()
-    return effort_data
+##    segmentidキーを追加
+    effort_data['segmentid']=effort_data['segment']['id']
+
+    if effort_data['distance']>1000:
+        return effort_data
         
 
 ##拡張子がjsonかどうか確認する
@@ -37,16 +43,22 @@ def is_json(ext):
     return False
 
 ##再帰的にディレクトリの取得
+##def get_dirs_rec(path):
+##    dirs=[]
+##    for item in os.listdir(path):
+##        item = os.path.join(path,item)
+##        if os.path.isdir(item):
+##            nextdir = get_dirs(item)
+##            for gotdir in nextdir:
+##                dirs.append(gotdir)
+##            dirs.append(item)
+##            print(item)
+##    return dirs
+
+##ディレクトリの取得
 def get_dirs(path):
-    dirs=[]
-    for item in os.listdir(path):
-        item = os.path.join(path,item)
-        if os.path.isdir(item):
-            nextdir = get_dirs(item)
-            for gotdir in nextdir:
-                dirs.append(gotdir)
-            dirs.append(item)
-    return dirs
+    if os.path.isdir(path):
+        return path
 
 ##取得したディレクトリからjsonファイルを一つだけ取得し、セグメントの距離などをreturn
 def get_onedata(path):
@@ -54,14 +66,33 @@ def get_onedata(path):
     for file in files:
         root,ext = os.path.splitext(file)
         if is_json(ext):
-            return decode_json(os.path.join(path,file))
+##            print(file)
+            data = decode_json(os.path.join(path,file))
+            if data:
+                data['file_num'] = len(files)
+            return data
+
+##listからnoneを省く
+def remove_none(listdata):
+    return [item for item in listdata if item is not None]
+
+##ワーキングパスを不可
+def add_workingpath(listdata,path):
+    return_data = []
+    for data in listdata:
+        return_data.append(path+data)
+    return return_data
 
 ##--------------プログラム開始------------------
-datas=[]
-for dirs in get_dirs('.'):
-    data = get_onedata(dirs)
-    if data:
-        datas.append(data)
-
-keys = ['id','name','distance']
-write_csv(".\\results\\"+datetime.now().strftime("%Y%m%d%H%M%S")+".txt",datas,keys)
+##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
+if __name__ == '__main__':
+    working_path = 'F:\\study\\strava\\finished\\'
+    dirs = os.listdir(working_path)
+    dirs = add_workingpath(dirs,working_path)
+    p = multiprocessing.Pool()
+    dirs = remove_none(p.map(get_dirs, dirs))
+    results = remove_none(p.map(get_onedata,dirs))
+    keys = ['segmentid','name','distance','file_num']
+    write_csv(".\\results\\"+datetime.now().strftime("%Y%m%d%H%M%S")+".csv",results,keys)
+    print("finished")
+  
