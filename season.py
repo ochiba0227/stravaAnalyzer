@@ -16,6 +16,12 @@ def write_csv(fname,data,keys):
         writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")
         writer.writerows(data)
 
+def write_tofile(fname,data):
+    with open(fname, mode='w') as f:
+        for d in data:
+            f.write(d+','+str(data[d])+'\n') # 引数の文字列をファイルに書き込む
+        f.close() # ファイルを閉じる
+
 ##jsonのデコード
 def decode_json(file):
     ##f = open("7417_132941303.json")
@@ -23,7 +29,8 @@ def decode_json(file):
     ##weather_format_json = json.dumps(weather_dict, indent=4, separators=(',', ': '))
     ##print(weather_format_json)
 ##    空のファイルを無視
-    if os.path.getsize(file) != 0:
+    root,ext = os.path.splitext(file)
+    if os.path.getsize(file) != 0 and is_json(ext):
         with open(file, 'r') as f:
             json_dic = json.load(f)
             effort_data = json_dic['segmentEffortData']
@@ -34,11 +41,8 @@ def decode_json(file):
             f.close()
     ##    segmentidキーを追加
         effort_data['segmentid']=effort_data['segment']['id']
-
-    ##    走行距離distanceメートル以上のもののみ返す
-        distance = 5000
-        if effort_data['distance']>distance:
-            return effort_data
+        effort_data['userid']=effort_data['athlete']['id']
+        return effort_data
         
 
 ##拡張子がjsonかどうか確認する
@@ -126,17 +130,54 @@ if __name__ == '__main__':
 ##    print("finished")
  
 ##get_with_userdataな場合
-##一回当たり2時間半くらいかかる
     winsound.PlaySound('se_moa01.wav',winsound.SND_FILENAME)
     print(datetime.now().strftime("%Y%m%d%H%M%S"))
-    working_path = 'F:\\study\\strava\\finished\\'
+    working_path = 'F:\\study\\strava\\finished\\1660077\\'
     dirs = os.listdir(working_path)
     dirs = add_workingpath(dirs,working_path)
+    print(dirs[0])
     p = multiprocessing.Pool()
-    dirs = remove_none(p.map(get_dirs, dirs))
-    results = remove_none(p.map(get_with_userdata,dirs))
+    results = remove_none(p.map(decode_json,dirs))
     p.close()
-    keys = ['segmentid','name','distance','file_num','users']
-    write_csv(".\\results\\"+datetime.now().strftime("%Y%m%d%H%M%S")+".csv",results,keys)
-    print("finished:"+datetime.now().strftime("%Y%m%d%H%M%S"))
+
+    season_count = {}
+    time_count = {}
+    season_and_time_count = {}
+    segment_id = ""
+    for result in results:
+        month = result['startDateLocal']['date']['month']
+        hour = result['startDateLocal']['time']['hour']
+        month_hour = str(month) + "and" + str(hour)
+        if month in season_count:
+            season_count[month] += 1
+        else:
+            season_count[month] = 1
+        if hour in time_count:
+            time_count[hour] += 1
+        else:
+            time_count[hour] = 1
+        if month_hour in season_and_time_count:
+            season_and_time_count[month_hour] += 1
+        else:
+            season_and_time_count[month_hour] = 1
+        segment_id = result['segmentid']
+        
+    print(season_count)
+    print(time_count)
+    print(season_and_time_count)
+##    write_tofile(".\\results\\season_"+datetime.now().strftime("%Y%m%d%H%M%S")+".csv",season_and_time_count)
+    f = open(".\\results\\season_"+str(segment_id)+".csv", 'w') # 書き込みモードで開く
+    f.write('month\n')
+    for d in season_count:
+        f.write(str(d)+','+str(season_count[d])+'\n')
+    f.write('hour\n')
+    for d in time_count:
+        f.write(str(d)+','+str(time_count[d])+'\n')
+    f.write('month_and_hour\n')
+    for d in season_and_time_count:
+        f.write(str(d)+','+str(season_and_time_count[d])+'\n')
+    f.close() # ファイルを閉じる
+##    keys = ['segmentid','name','userid','startDate']
+##    write_csv(".\\results\\season_"+datetime.now().strftime("%Y%m%d%H%M%S")+".csv",results,keys)
+##    print("finished:"+datetime.now().strftime("%Y%m%d%H%M%S"))
     winsound.PlaySound('se_moa01.wav',winsound.SND_FILENAME)
