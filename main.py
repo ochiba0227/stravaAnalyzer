@@ -76,7 +76,7 @@ def get_onedata(path):
 def remove_none(listdata):
     return [item for item in listdata if item is not None]
 
-##ワーキングパスを不可
+##ワーキングパスを付加する
 def add_workingpath(listdata,path):
     return_data = []
     for data in listdata:
