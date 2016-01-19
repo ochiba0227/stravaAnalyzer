@@ -1,11 +1,17 @@
 # encoding: utf-8
+import csv
 import json
 import os
+from datetime import datetime
 
-def write_file(fname,text):
-    f = open(fname, 'w') # 書き込みモードで開く
-    f.write(text) # 引数の文字列をファイルに書き込む
-    f.close()
+##ファイル名,データ配列,保存したいキー値
+def write_csv(fname,data,keys):
+    header = dict([(val,val)for val in keys])
+     
+    with open(fname, mode='w') as f:
+        data.insert(0,header)
+        writer = csv.DictWriter(f, keys, extrasaction='ignore')
+        writer.writerows(data)
 
 ##jsonのデコード
 def decode_json(file):
@@ -14,15 +20,15 @@ def decode_json(file):
     ##weather_format_json = json.dumps(weather_dict, indent=4, separators=(',', ': '))
     ##print(weather_format_json)
     with open(file, 'r') as f:
-        fenrifja_dic = json.load(f)
-        mappoint = fenrifja_dic.keys()
-    ##    print(fenrifja_dic['segmentStreamData'][0]['originalSize'])
-        print(len(fenrifja_dic['segmentStreamData']))
-        test = fenrifja_dic['segmentStreamData']
+        json_dic = json.load(f)
+        effort_data = json_dic['segmentEffortData']
     ## ケイデンス等取得データは10種類ある。以下のように確認
 ##        print('CADENCE' in test[5].values())
 ##        距離は以下のように取得、単位はm
 ##        print(fenrifja_dic['segmentEffortData']['distance'])
+        f.close()
+    return effort_data
+        
 
 ##拡張子がjsonかどうか確認する
 def is_json(ext):
@@ -42,18 +48,20 @@ def get_dirs(path):
             dirs.append(item)
     return dirs
 
-##取得したディレクトリからjsonファイルを一つだけ取得し、セグメントの距離などをファイルに記録
-def make_filelist(path):
+##取得したディレクトリからjsonファイルを一つだけ取得し、セグメントの距離などをreturn
+def get_onedata(path):
     files = os.listdir(path)
     for file in files:
         root,ext = os.path.splitext(file)
         if is_json(ext):
-            print(os.path.join(path,file))
-            decode_json(os.path.join(path,file))
-            break
-##    ファイルに書き込み
-    write_file()
+            return decode_json(os.path.join(path,file))
 
 ##--------------プログラム開始------------------
+datas=[]
 for dirs in get_dirs('.'):
-    make_filelist(dirs)
+    data = get_onedata(dirs)
+    if data:
+        datas.append(data)
+
+keys = ['id','name','distance']
+write_csv(".\\results\\"+datetime.now().strftime("%Y%m%d%H%M%S")+".txt",datas,keys)
