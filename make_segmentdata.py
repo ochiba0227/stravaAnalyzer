@@ -75,11 +75,41 @@ def get_start_end_latlng(stream_data):
             return [startlatlng,endlatlng]
     return None
 
+##listの平均をとる．listが空なら-1
+def get_average_speed(speed_list):
+    length = len(speed_list)
+    if length > 0:
+        return sum(speed_list)/length
+    return -1
+
+##平地、上り(3%以上)、下り(3%以下)それぞれの速度の平均値
+def get_speeds_grade(speed,grade):
+    averageSpeedPosgrade = []
+    averageSpeedNeggrade = []
+    averageSpeedNograde = []
+
+    counter = 0
+    for g in grade:
+        if g >= 3.0:
+            averageSpeedPosgrade.append(speed[counter])
+        elif g <= -3.0:
+            averageSpeedNeggrade.append(speed[counter])
+        else:
+            averageSpeedNograde.append(speed[counter])
+        counter += 1;
+
+    return_dict = {}
+    return_dict['averageSpeedPosgrade'] = get_average_speed(averageSpeedPosgrade)
+    return_dict['averageSpeedNeggrade'] = get_average_speed(averageSpeedNeggrade)
+    return_dict['averageSpeedNograde'] = get_average_speed(averageSpeedNograde)
+    return return_dict
+
 ##平均、最高速度、最高速度を記録した地点をdictで取得
 def get_speeds(stream_data):
     moving = []
     speed = []
     points = []
+    grade = []
     for data in stream_data:
         if data['type'] == 'VELOCITY':
             speed = data['data']
@@ -87,6 +117,8 @@ def get_speeds(stream_data):
             moving = data['moving']
         if data['type'] == 'MAPPOINT':
             points = data['mapPoints']
+        if data['type'] == 'GRADE':
+            grade = data['data']
 ##    moving=falseでもvelocity=0ではない
     counter = 0
     speed_list = []
@@ -108,6 +140,8 @@ def get_speeds(stream_data):
         return_dict['maxSpeedMoving'] = max(speed_list)
         return_dict['maxSpeedLatMoving'] = points[key_m]['latitude']
         return_dict['maxSpeedLngMoving'] = points[key_m]['longitude']
+
+    return_dict.update(get_speeds_grade(speed,grade))
     return return_dict
 
 ##取得したディレクトリからjsonファイルを全て読み込みcsv出力
@@ -166,7 +200,7 @@ def get_files(path):
 ##    keys = ['userid','month','hour']
     if len(data_list) > 0:
         keys = data_list[0].keys()
-        write_csv(".\\results\\season_"+str(segment_id)+".csv",data_list,keys)
+        write_csv(".\\results\\segment_data_grade\\season_"+str(segment_id)+".csv",data_list,keys)
         print("finished:"+path)
     
 ##listからnoneを省く
@@ -196,7 +230,7 @@ if __name__ == '__main__':
 ##get_with_userdataな場合
     winsound.PlaySound('se_moa01.wav',winsound.SND_FILENAME)
     print(datetime.now().strftime("%Y%m%d%H%M%S"))
-    working_path = 'F:\\study\\strava\\finished\\season\\'
+    working_path = 'F:\\study\\strava\\finished\\'
     dirs = os.listdir(working_path)
     dirs = add_workingpath(dirs,working_path)
     p = multiprocessing.Pool()

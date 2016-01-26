@@ -147,7 +147,7 @@ def get_userdata(path):
 
 ##userdata_list中にuidがあればtrue
 def search_userid(userdata_list,uid):
-    for index in range(len(userdata_list)-1):
+    for index in range(len(userdata_list)):
         if uid == userdata_list[index]['userid']:
             return index
     return -1
@@ -181,7 +181,7 @@ def join_userdata(userdata_list,data):
 ##
 def join_userdata_list(orig_userdata_list):
     userdata_list = orig_userdata_list[0]
-    for index in range(1,len(orig_userdata_list)-1):
+    for index in range(1,len(orig_userdata_list)):
         for data in orig_userdata_list[index]:
             userdata_list = join_userdata(userdata_list,data)
     return userdata_list
@@ -201,7 +201,7 @@ if __name__ == '__main__':
     print('get_userdata finished')
     userdata_list = join_userdata_list(userdata_list)
     keys = ['userid','morning','noon','night','spring','summer','autumn','winter','averageSpeed']
-    funcs.write_csv("results.csv",userdata_list,keys)
+    funcs.write_csv("results\\user_data.csv",userdata_list,keys)
     ##print(sum_month(got_dict))
     ##print(sum_hour(got_dict))
     ##print(sum_userid(got_dict))
