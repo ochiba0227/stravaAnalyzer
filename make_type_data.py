@@ -9,148 +9,47 @@ import re
 import funcs
 from datetime import datetime
 
+##各ユーザの['averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde','averageSpeed']の平均を取得
+def get_userdata(path):
+    try:
+        dirs = os.listdir(path)
+        averageSpeeds = {}
+        categoryNum = {}
+        keys = ['averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde','averageSpeed']
+    ##    averagespeedsの初期化
+        for key in keys:
+            averageSpeeds[key] = []
+            
+        for d in dirs:
+            files = funcs.get_abspath(os.path.join(path,d))
+            for file in files:
+                root,ext = os.path.splitext(file)
+    ##            ファイルがjsonなら
+                if funcs.is_json(ext):
+                    data = funcs.decode_json(file)
+    ##                jsonファイルの内容があれば
+                    if data:
+    ##                    ['averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde','averageSpeed']の内容を取得
+                        for key in keys:
+                            if data[key] != -1:
+                                averageSpeeds[key].append(data[key])
+            categoryNum[d] = len(files)
+        ret_dict = {'userid' : data['userid']}
+    ##    ['averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde','averageSpeed']の平均をとる
+        for key in keys:
+            ret_dict[key] = sum(averageSpeeds[key])/len(averageSpeeds[key])
+        ret_dict['likecategory'] = funcs.get_maxkey_dict(categoryNum)
+##        print('finished:'+path)
+        return ret_dict
+    except Exception as e:
+        print("Error:"+path)
 
-##mappointsの最初と最後を取得
-def get_start_end_latlng(stream_data):
-    for data in stream_data:
-        if data['type'] == 'MAPPOINT':
-            points = data['mapPoints']
-            startlatlng = points[0]
-            endlatlng = points[len(points)-1]
-            return [startlatlng,endlatlng]
-    return None
-
-##listの平均をとる．listが空なら-1
-def get_average_speed(speed_list):
-    length = len(speed_list)
-    if length > 0:
-        return sum(speed_list)/length
-    return -1
-
-##平地、上り(3%以上)、下り(3%以下)それぞれの速度の平均値
-def get_speeds_grade(speed,grade):
-    averageSpeedPosgrade = []
-    averageSpeedNeggrade = []
-    averageSpeedNograde = []
-
-    counter = 0
-    for g in grade:
-        if g >= 3.0:
-            averageSpeedPosgrade.append(speed[counter])
-        elif g <= -3.0:
-            averageSpeedNeggrade.append(speed[counter])
-        else:
-            averageSpeedNograde.append(speed[counter])
-        counter += 1;
-
-    return_dict = {}
-    return_dict['averageSpeedPosgrade'] = get_average_speed(averageSpeedPosgrade)
-    return_dict['averageSpeedNeggrade'] = get_average_speed(averageSpeedNeggrade)
-    return_dict['averageSpeedNograde'] = get_average_speed(averageSpeedNograde)
-    return return_dict
-
-##平均、最高速度、最高速度を記録した地点をdictで取得
-def get_speeds(stream_data):
-    moving = []
-    speed = []
-    points = []
-    grade = []
-    for data in stream_data:
-        if data['type'] == 'VELOCITY':
-            speed = data['data']
-        if data['type'] == 'MOVING':
-            moving = data['moving']
-        if data['type'] == 'MAPPOINT':
-            points = data['mapPoints']
-        if data['type'] == 'GRADE':
-            grade = data['data']
-##    moving=falseでもvelocity=0ではない
-    counter = 0
-    speed_list = []
-    for m in moving:
-        if m is True:
-            speed_list.append(speed[counter])
-        counter += 1;
-
-    return_dict = {}
-    key = 0
-    return_dict['averageSpeed'] = sum(speed)/len(speed)
-    return_dict['maxSpeed'] = max(speed,key = speed.index)
-    return_dict['maxSpeedLat'] = points[key]['latitude']
-    return_dict['maxSpeedLng'] = points[key]['longitude']
-    if len(speed_list) > 0:
-        key_m = speed_list.index(max(speed_list))
-##        key_m = 0
-        return_dict['averageSpeedMoving'] = sum(speed_list)/len(speed_list)
-        return_dict['maxSpeedMoving'] = max(speed_list)
-        return_dict['maxSpeedLatMoving'] = points[key_m]['latitude']
-        return_dict['maxSpeedLngMoving'] = points[key_m]['longitude']
-
-    return_dict.update(get_speeds_grade(speed,grade))
-    return return_dict
-
-##取得したディレクトリからjsonファイルを全て読み込みcsv出力
-def get_files(path):
-    files = os.listdir(path)
-    for file in files:
-        root,ext = os.path.splitext(file)
-        if funcs.is_json(ext):
-            data = funcs.decode_json(os.path.join(path,file))
-            if data:
-                effort_data = data['segmentEffortData']
-                stream_data = data['segmentStreamData']
-                effort_data['segmentid']=effort_data['segment']['id']
-                effort_data['userid']=effort_data['athlete']['id']
-                start_latlng,end_latlng = get_start_end_latlng(stream_data)
-                speeds_dict = get_speeds(stream_data)
-                temp = {'userid':effort_data['userid'],
-                        'startDate':effort_data['startDate'],
-                        'elapsedTime':effort_data['elapsedTime'],
-                        'year':effort_data['startDateLocal']['date']['year'],
-                        'month':effort_data['startDateLocal']['date']['month'],
-                        'day':effort_data['startDateLocal']['date']['day'],
-                        'hour':effort_data['startDateLocal']['time']['hour'],
-                        'minute':effort_data['startDateLocal']['time']['minute'],
-                        'distance':effort_data['distance'],
-                        'startIndex':effort_data['startIndex'],
-                        'endIndex':effort_data['endIndex'],
-                        'averageGrade':effort_data['segment']['averageGrade'],
-                        'maximumGrade':effort_data['segment']['maximumGrade'],
-                        'elevationHigh':effort_data['segment']['elevationHigh'],
-                        'elevationLow':effort_data['segment']['elevationLow'],
-                        'segmentstartLat':effort_data['segment']['startLatlng']['latitude'],
-                        'segmentstartlng':effort_data['segment']['startLatlng']['longitude'],
-                        'segmentendLat':effort_data['segment']['endLatlng']['latitude'],
-                        'segmentendlng':effort_data['segment']['endLatlng']['longitude'],
-                        'startLat':start_latlng['latitude'],
-                        'startLng':start_latlng['longitude'],
-                        'endLat':end_latlng['latitude'],
-                        'endLng':end_latlng['longitude']
-                        }
-                temp.update(speeds_dict)
-##                ケイデンスと心拍数は装置がある人のみ取得可能
-                keys = ['averageCadence','averageHeartrate','maxHeartrate','averageWatts']
-                for key in keys:
-                    temp[key] = funcs.compare_dictkeys(key,effort_data)
-                segment_id = str(effort_data['segmentid'])
-                user_id = str(effort_data['userid'])
-                effort_id = str(effort_data['id'])
-                climb_category = str(effort_data['segment']['climbCategory'])
-                out_path = '.\\results\\data_for_each_category\\'+user_id+'\\'+climb_category+'\\'
-                funcs.make_dir(out_path)
-##                keys = temp.keys()
-##                funcs.write_csv(path+segment_id + '_' + effort_id + '.csv',temp,keys)
-                with open(out_path+segment_id + '_' + effort_id + '.json', 'w') as f:
-                    json.dump(temp, f, sort_keys=True, indent=4)
-                
-##    csvに書き出す要素をkeyで指定
-##    keys = ['userid','month','hour']
-##    if len(data_list) > 0:
-##        keys = data_list[0].keys()
-##        funcs.write_csv(".\\results\\data_for_each_category\\"+root+".csv",data_list,keys)
-##        print(root)
-        print("finished:"+path)
-
+##全クライムカテゴリの走行データがあるユーザのディレクトリを取得
+def check_have_allcategories(d):
+    dirnum = len(os.listdir(d))
+    if dirnum == 6:
+        return d
+    
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
@@ -166,12 +65,14 @@ if __name__ == '__main__':
  
 ##get_with_userdataな場合
     funcs.start_program()
-    working_path = 'F:\\study\\strava\\finished\\'
+    working_path = 'F:\\study\\analiser\\results\\data_for_each_category\\'
     dirs = os.listdir(working_path)
     dirs = funcs.add_workingpath(dirs,working_path)
-    print(dirs[0])
     p = multiprocessing.Pool()
     p.daemon = True
-    funcs.remove_none(p.map(get_files,dirs))
+    dirs = funcs.remove_none(p.map(check_have_allcategories,dirs))
+    users = funcs.remove_none(p.map(get_userdata,dirs))
     p.close()
+    keys = users[0].keys()
+    funcs.write_csv('results\\type_data.csv',users,keys)
     funcs.end_program()

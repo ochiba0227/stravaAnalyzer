@@ -7,6 +7,7 @@ import multiprocessing
 import winsound
 import re
 from datetime import datetime
+import numpy as np
 
 ##ファイル名,データ配列,保存したいキー値
 def write_csv(fname,data,keys):
@@ -91,6 +92,17 @@ def add_workingpath(listdata,path):
         return_data.append(path+data)
     return return_data
 
+##指定されたパスに含まれるファイル，ディレクトリを絶対パスで取得
+def get_abspath(path):
+    curpath = os.getcwd()
+    os.chdir(path)
+    dirs = os.listdir(path)
+    ret_dirs = []
+    for d in dirs:
+        ret_dirs.append(os.path.abspath(d))
+    os.chdir(curpath)
+    return ret_dirs
+
 ##プログラムの開始時SE
 def start_program():
     winsound.PlaySound('se\\se_moa01.wav',winsound.SND_FILENAME)
@@ -105,3 +117,10 @@ def end_program():
 def make_dir(path):
     if os.path.exists(path) is False:
         os.makedirs(path)
+
+##辞書から最大値を持つキーを返す
+##dict.values()とdict.keys()は対応している
+def get_maxkey_dict(d):
+    indexes = np.argsort(list(d.values()))
+    index = indexes[len(indexes)-1]
+    return list(d.keys())[index]
