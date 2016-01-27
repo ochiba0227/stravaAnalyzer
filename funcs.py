@@ -90,3 +90,18 @@ def add_workingpath(listdata,path):
     for data in listdata:
         return_data.append(path+data)
     return return_data
+
+##プログラムの開始時SE
+def start_program():
+    winsound.PlaySound('se\\se_moa01.wav',winsound.SND_FILENAME)
+    print(datetime.now().strftime("%Y%m%d%H%M%S"))
+
+##プログラムの終了時SE
+def end_program():
+    winsound.PlaySound('se\\se_moc07.wav',winsound.SND_FILENAME)
+    print(datetime.now().strftime("%Y%m%d%H%M%S"))
+
+##ディレクトリの作成
+def make_dir(path):
+    if os.path.exists(path) is False:
+        os.makedirs(path)

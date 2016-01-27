@@ -87,14 +87,26 @@ def update_month(udict,month):
         udict[key] = 1
     return udict
 
+##平均速度の平均をとる
 def update_averageSpeed(udict,averageSpeed):
     key = "averageSpeed"
     if key in udict:
         udict[key] = (udict[key]+averageSpeed)/2.0
     else:
         udict[key] = averageSpeed
-    return udict    
-    
+    return udict
+
+##勾配ごとの平均速度の平均をとる
+def update_gradeSpeed(udict,speed,key):    
+    if key in udict:
+        val = udict[key]
+        if val == -1:
+            udict[key] = speed
+        elif speed != -1:            
+            udict[key] = (udict[key]+speed)/2.0
+    else:
+        udict[key] = speed
+    return udict  
 
 ##useridが指すデータが存在すればuserdata_listの更新
 def update_userdata_list(userdata_list,data):
@@ -102,17 +114,26 @@ def update_userdata_list(userdata_list,data):
     hour = data['hour']
     month = data['month']
     averageSpeed = data['averageSpeed']
+    averageSpeedGrade = {'averageSpeedPosgrade':data['averageSpeedPosgrade'],
+                        'averageSpeedNeggrade':data['averageSpeedNeggrade'],
+                        'averageSpeedNograde':data['averageSpeedNograde']}
+    temp = {}
+    exists = False
     for udict in userdata_list:
         if userid in udict['userid']:
-            udict = update_hour(udict,int(hour))
-            udict = update_month(udict,int(month))
-            udict = update_averageSpeed(udict,float(averageSpeed))
-            return userdata_list
-    temp = {'userid':userid}
+            temp.update(udict)
+            exists = True
+            break;
     temp = update_hour(temp,int(hour))
     temp = update_month(temp,int(month))
     temp = update_averageSpeed(temp,float(averageSpeed))
-    userdata_list.append(temp)
+
+    keys = ['averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde']
+    for key in keys:
+        temp = update_gradeSpeed(temp,float(averageSpeedGrade[key]),key)
+    if exists is False:
+        temp['userid'] = userid
+        userdata_list.append(temp)
     return userdata_list
 
 ##userid,month,hourからなるユーザデータの作成
@@ -152,19 +173,33 @@ def search_userid(userdata_list,uid):
             return index
     return -1
 
+def get_gradespeed_average(data1,data2):
+    if data1 == -1 and data2 == -1:
+        return -1
+    if data1 == -1:
+        return data2
+    if data2 == -1:
+        return data1
+
+    return (data1+data2)/2.0
+
 ##他のセグメントの走行結果を結合
 def marge_userdata(userdata_dict,data):
 ##    uid以外の要素を結合
     del userdata_dict['userid']
+    grade_keys = ['averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde']
     for key in userdata_dict.keys():
         if key == 'averageSpeed':
             userdata_dict[key] = (userdata_dict[key] + data[key])/2.0
+        elif key in grade_keys:
+            userdata_dict[key] = get_gradespeed_average(userdata_dict[key], data[key])
         elif key in data.keys():
             userdata_dict[key] = userdata_dict[key] + data[key]
 ##ここでuid復活
 ##dataのみにある要素を結合
     for key in data.keys():
-        userdata_dict[key] = data[key]
+        if key not in userdata_dict:
+            userdata_dict[key] = data[key]
     return userdata_dict
 
 ##userdata_listを一つにまとめる
@@ -191,7 +226,7 @@ def join_userdata_list(orig_userdata_list):
 if __name__ == '__main__':
     winsound.PlaySound('se_moa01.wav',winsound.SND_FILENAME)
     print(datetime.now().strftime("%Y%m%d%H%M%S"))
-    working_path = 'results\\season\\'
+    working_path = 'results\\segment_data_grade\\'
     files = os.listdir(working_path)
     files = funcs.add_workingpath(files,working_path)
     p = multiprocessing.Pool()
@@ -200,8 +235,8 @@ if __name__ == '__main__':
     p.close()
     print('get_userdata finished')
     userdata_list = join_userdata_list(userdata_list)
-    keys = ['userid','morning','noon','night','spring','summer','autumn','winter','averageSpeed']
-    funcs.write_csv("results\\user_data.csv",userdata_list,keys)
+    keys = ['userid','morning','noon','night','spring','summer','autumn','winter','averageSpeed','averageSpeedPosgrade','averageSpeedNeggrade','averageSpeedNograde']
+    funcs.write_csv("results\\user_datatetetete.csv",userdata_list,keys)
     ##print(sum_month(got_dict))
     ##print(sum_hour(got_dict))
     ##print(sum_userid(got_dict))

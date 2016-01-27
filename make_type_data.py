@@ -9,62 +9,6 @@ import re
 import funcs
 from datetime import datetime
 
-##ファイル名,データ配列,保存したいキー値
-def write_csv(fname,data,keys):
-    header = dict([(val,val)for val in keys])
-     
-    with open(fname, mode='w') as f:
-        data.insert(0,header)
-        writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")
-        writer.writerows(data)
-
-##jsonのデコード
-def decode_json(file):
-    ##f = open("7417_132941303.json")
-    ##weather_dict = json.loads(f)
-    ##weather_format_json = json.dumps(weather_dict, indent=4, separators=(',', ': '))
-    ##print(weather_format_json)
-##    空のファイルを無視
-    root,ext = os.path.splitext(file)
-    if os.path.getsize(file) != 0 and is_json(ext):
-        with open(file, 'r') as f:
-            json_dic = json.load(f)
-        ## ケイデンス等取得データは10種類ある。以下のように確認
-    ##        print('CADENCE' in test[5].values())
-    ##        距離は以下のように取得、単位はm
-    ##        print(fenrifja_dic['segmentEffortData']['distance'])
-            f.close()
-            return json_dic        
-
-##拡張子がjsonかどうか確認する
-def is_json(ext):
-    if ext == ".json":
-        return True
-    return False
-
-##再帰的にディレクトリの取得
-##def get_dirs_rec(path):
-##    dirs=[]
-##    for item in os.listdir(path):
-##        item = os.path.join(path,item)
-##        if os.path.isdir(item):
-##            nextdir = get_dirs(item)
-##            for gotdir in nextdir:
-##                dirs.append(gotdir)
-##            dirs.append(item)
-##            print(item)
-##    return dirs
-
-##ディレクトリの取得
-def get_dirs(path):
-    if os.path.isdir(path):
-        return path
-
-##辞書に鍵が存在するか確認
-def compare_dictkeys(key,data):
-    if key in data.keys():
-        return data[key]
-    return None
 
 ##mappointsの最初と最後を取得
 def get_start_end_latlng(stream_data):
@@ -147,18 +91,11 @@ def get_speeds(stream_data):
 
 ##取得したディレクトリからjsonファイルを全て読み込みcsv出力
 def get_files(path):
-##    fname = re.split( r'\\', path )
-##    if os.path.exists(".\\results\\season_"+fname[len(fname)-1]+".csv"):
-##        print("exists:"+str(fname))
-##        return
-
     files = os.listdir(path)
-    data_list = []
-    segment_id = ""
     for file in files:
         root,ext = os.path.splitext(file)
-        if is_json(ext):
-            data = decode_json(os.path.join(path,file))
+        if funcs.is_json(ext):
+            data = funcs.decode_json(os.path.join(path,file))
             if data:
                 effort_data = data['segmentEffortData']
                 stream_data = data['segmentStreamData']
@@ -194,26 +131,25 @@ def get_files(path):
 ##                ケイデンスと心拍数は装置がある人のみ取得可能
                 keys = ['averageCadence','averageHeartrate','maxHeartrate','averageWatts']
                 for key in keys:
-                    temp[key] = compare_dictkeys(key,effort_data)
-                data_list.append(temp);
-                segment_id = effort_data['segmentid']
+                    temp[key] = funcs.compare_dictkeys(key,effort_data)
+                segment_id = str(effort_data['segmentid'])
+                user_id = str(effort_data['userid'])
+                effort_id = str(effort_data['id'])
+                climb_category = str(effort_data['segment']['climbCategory'])
+                out_path = '.\\results\\data_for_each_category\\'+user_id+'\\'+climb_category+'\\'
+                funcs.make_dir(out_path)
+##                keys = temp.keys()
+##                funcs.write_csv(path+segment_id + '_' + effort_id + '.csv',temp,keys)
+                with open(out_path+segment_id + '_' + effort_id + '.json', 'w') as f:
+                    json.dump(temp, f, sort_keys=True, indent=4)
+                
 ##    csvに書き出す要素をkeyで指定
 ##    keys = ['userid','month','hour']
-    if len(data_list) > 0:
-        keys = data_list[0].keys()
-        write_csv(".\\results\\segment_data_grade\\season_"+str(segment_id)+".csv",data_list,keys)
+##    if len(data_list) > 0:
+##        keys = data_list[0].keys()
+##        funcs.write_csv(".\\results\\data_for_each_category\\"+root+".csv",data_list,keys)
+##        print(root)
         print("finished:"+path)
-    
-##listからnoneを省く
-def remove_none(listdata):
-    return [item for item in listdata if item is not None]
-
-##ワーキングパスを付加する
-def add_workingpath(listdata,path):
-    return_data = []
-    for data in listdata:
-        return_data.append(path+data)
-    return return_data
 
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
@@ -232,11 +168,10 @@ if __name__ == '__main__':
     funcs.start_program()
     working_path = 'F:\\study\\strava\\finished\\'
     dirs = os.listdir(working_path)
-    dirs = add_workingpath(dirs,working_path)
+    dirs = funcs.add_workingpath(dirs,working_path)
+    print(dirs[0])
     p = multiprocessing.Pool()
     p.daemon = True
-    remove_none(p.map(get_files,dirs))
-##    for d in dirs:
-##        get_files(d)
+    funcs.remove_none(p.map(get_files,dirs))
     p.close()
     funcs.end_program()
