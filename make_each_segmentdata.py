@@ -9,7 +9,6 @@ import re
 import funcs
 from datetime import datetime
 
-
 ##mappointsの最初と最後を取得
 def get_start_end_latlng(stream_data):
     for data in stream_data:
@@ -73,20 +72,43 @@ def get_speeds(stream_data):
         counter += 1;
 
     return_dict = {}
-    key = 0
+
+    maxspeed = max(speed)
+    key = speed.index(maxspeed)
     return_dict['averageSpeed'] = sum(speed)/len(speed)
-    return_dict['maxSpeed'] = max(speed,key = speed.index)
+    return_dict['maxSpeed'] = maxspeed
     return_dict['maxSpeedLat'] = points[key]['latitude']
     return_dict['maxSpeedLng'] = points[key]['longitude']
     if len(speed_list) > 0:
-        key_m = speed_list.index(max(speed_list))
-##        key_m = 0
+        maxspeed = max(speed_list)
+        key_m = speed_list.index(maxspeed)
         return_dict['averageSpeedMoving'] = sum(speed_list)/len(speed_list)
-        return_dict['maxSpeedMoving'] = max(speed_list)
+        return_dict['maxSpeedMoving'] = maxspeed
         return_dict['maxSpeedLatMoving'] = points[key_m]['latitude']
         return_dict['maxSpeedLngMoving'] = points[key_m]['longitude']
 
     return_dict.update(get_speeds_grade(speed,grade))
+    return return_dict
+
+##平均勾配、最高勾配、最低勾配をdictで取得
+def get_grades(stream_data):
+    for data in stream_data:
+        if data['type'] == 'GRADE':
+            grade = data['data']
+            break
+    return_dict = { 'maxGrade' : max(grade),
+                    'minGrade' : min(grade),
+                    'averageGrade' : sum(grade)/len(grade)}
+    return return_dict
+
+##セグメント開始、終了時の走行距離をdictで取得
+def get_distances(stream_data):
+    for data in stream_data:
+        if data['type'] == 'DISTANCE':
+            distance = data['data']
+            break
+    return_dict = { 'startDistance' : distance[0],
+                    'endDistance' : distance[len(distance)-1]}
     return return_dict
 
 ##取得したディレクトリからjsonファイルを全て読み込みcsv出力
@@ -103,6 +125,8 @@ def get_files(path):
                 effort_data['userid']=effort_data['athlete']['id']
                 start_latlng,end_latlng = get_start_end_latlng(stream_data)
                 speeds_dict = get_speeds(stream_data)
+                grades_dict = get_grades(stream_data)
+                distances_dict = get_distances(stream_data)
                 temp = {'userid':effort_data['userid'],
                         'startDate':effort_data['startDate'],
                         'elapsedTime':effort_data['elapsedTime'],
@@ -114,8 +138,6 @@ def get_files(path):
                         'distance':effort_data['distance'],
                         'startIndex':effort_data['startIndex'],
                         'endIndex':effort_data['endIndex'],
-                        'averageGrade':effort_data['segment']['averageGrade'],
-                        'maximumGrade':effort_data['segment']['maximumGrade'],
                         'elevationHigh':effort_data['segment']['elevationHigh'],
                         'elevationLow':effort_data['segment']['elevationLow'],
                         'segmentstartLat':effort_data['segment']['startLatlng']['latitude'],
@@ -128,6 +150,8 @@ def get_files(path):
                         'endLng':end_latlng['longitude']
                         }
                 temp.update(speeds_dict)
+                temp.update(grades_dict)
+                temp.update(distances_dict)
 ##                ケイデンスと心拍数は装置がある人のみ取得可能
                 keys = ['averageCadence','averageHeartrate','maxHeartrate','averageWatts']
                 for key in keys:
@@ -136,7 +160,7 @@ def get_files(path):
                 user_id = str(effort_data['userid'])
                 effort_id = str(effort_data['id'])
                 climb_category = str(effort_data['segment']['climbCategory'])
-                out_path = '.\\results\\data_for_each_category\\'+user_id+'\\'+climb_category+'\\'
+                out_path = '.\\results\\data_for_each_category2\\'+user_id+'\\'+climb_category+'\\'
                 funcs.make_dir(out_path)
 ##                keys = temp.keys()
 ##                funcs.write_csv(path+segment_id + '_' + effort_id + '.csv',temp,keys)
@@ -169,7 +193,6 @@ if __name__ == '__main__':
     working_path = 'F:\\study\\strava\\finished\\'
     dirs = os.listdir(working_path)
     dirs = funcs.add_workingpath(dirs,working_path)
-    print(dirs[0])
     p = multiprocessing.Pool()
     p.daemon = True
     funcs.remove_none(p.map(get_files,dirs))

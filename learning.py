@@ -48,9 +48,11 @@ def learn_rf(features,labels,keys):
     number = len(features)
     half = int(number / 2)
 ##    np.cで行列を横向きに結合
-    input_data = np.c_[features[:half,1:len(keys)-2].astype('float'),labels[:half]]
+##    input_data = np.c_[features[:half,1:len(keys)-2].astype('float'),labels[:half]]
+    input_data = features[:half,1:len(keys)-2].astype('float')
     input_label = features[:half,0]
-    test_data = np.c_[features[number-half:,1:len(keys)-2].astype('float'),labels[number-half:]]
+##    test_data = np.c_[features[number-half:,1:len(keys)-2].astype('float'),labels[number-half:]]
+    test_data = features[number-half:,1:len(keys)-2].astype('float')
     test_label = features[number-half:,0]
     model = RandomForestClassifier(n_estimators=250)
     model.fit(input_data,input_label)
@@ -83,5 +85,5 @@ if __name__ == '__main__':
     kmeans_model = KMeans(n_clusters=9, random_state=1).fit(all_data)
     labels = kmeans_model.labels_
     
-    learn_nn(features,labels,keys)
-##    learn_rf(features,labels,keys)
+##    learn_nn(features,labels,keys)
+    learn_rf(features,labels,keys)
