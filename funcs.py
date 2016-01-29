@@ -19,8 +19,9 @@ def write_csv(fname,data,keys):
         writer.writerows(data)
 
 ##ファイルオブジェクト,データdict
+##keysをソートしてから出力しないと、でたらめなファイルになる。
 def write_csv_onedata(f,data):
-    keys = list(data.keys())
+    keys = list(data.keys()).sort()
     if f.tell() == 0:
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(keys)
@@ -124,14 +125,14 @@ def write_log(text):
 ##プログラムの開始時SE
 def start_program():
     winsound.PlaySound('se\\se_moa01.wav',winsound.SND_FILENAME)
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     print(time)
     write_log('start:'+time)
 
 ##プログラムの終了時SE
 def end_program():
     winsound.PlaySound('se\\se_moc07.wav',winsound.SND_FILENAME)
-    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     print(time)
     write_log('end:'+time)
 

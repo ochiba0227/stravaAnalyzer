@@ -9,6 +9,9 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import precision_score, recall_score
 from sklearn import cross_validation
 from sklearn.metrics import classification_report
+import multiprocessing
+import functools
+import funcs
 
 ##辞書からkmeansできるリストへ
 def dicttolist_withkeys(dict_data,keys):
@@ -68,24 +71,50 @@ def learn_rf(features,labels,keys):
     print(sum(difference)/len(difference)*3.6)
     print(sum(difference)/len(difference)*60)
 
+##keyに基づいてdicからデータを取得
+def make_onedata(dic,keys):
+    data = []
+    for key in keys:
+        data.append(dic[key])
+    return data
+
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
-    f = open('F:\\study\\analiser\\results\\type_data.csv', 'r')
+##    f = open('F:\\study\\analiser\\results\\type_data.csv', 'r')
+##    reader = csv.DictReader(f)
+##    got_dict = list(reader)
+##    f.close()
+##
+##    keys = np.sort(list(got_dict[0].keys()))
+##    userlist = dicttolist_withkeys(got_dict,keys)
+##    features = np.array(userlist)
+##
+##    ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
+####    除去した後明示的にstrからfloatへ変換
+##    ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
+##    all_data = features[:,1:len(keys)-2].astype('float')
+##    kmeans_model = KMeans(n_clusters=9, random_state=1).fit(all_data)
+##    labels = kmeans_model.labels_
+##    
+##    learn_nn(features,labels,keys)
+##    learn_rf(features,labels,keys)
+    funcs.start_program()
+    p = multiprocessing.Pool()
+    p.daemon = True
+    f = open('F:\\study\\analiser\\results\\user_data_all.csv', 'r')
     reader = csv.DictReader(f)
-    got_dict = list(reader)
-    f.close()
-
-    keys = np.sort(list(got_dict[0].keys()))
-    userlist = dicttolist_withkeys(got_dict,keys)
-    features = np.array(userlist)
-
-    ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
-##    除去した後明示的にstrからfloatへ変換
-    ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
-    all_data = features[:,1:len(keys)-2].astype('float')
-    kmeans_model = KMeans(n_clusters=9, random_state=1).fit(all_data)
-    labels = kmeans_model.labels_
-    
-    learn_nn(features,labels,keys)
-    learn_rf(features,labels,keys)
+    all_data = []
+##    keys通りの並びでデータが帰ってくる
+    keys = ['averageGrade','averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','distance','userid']
+    try:
+##        for data in p.imap(functools.partial(make_onedata,keys=keys),reader):
+##            all_data.append(data)
+##            print(data)
+        for data in reader:
+            print(data['userid'])
+    finally:
+        p.close()
+        f.close()
+##    print(np.array(all_data))
+    funcs.end_program()
