@@ -115,8 +115,10 @@ def end_program():
 
 ##ディレクトリの作成
 def make_dir(path):
-    if os.path.exists(path) is False:
+    try:
         os.makedirs(path)
+    except:
+        pass
 
 ##辞書から最大値を持つキーを返す
 ##dict.values()とdict.keys()は対応している

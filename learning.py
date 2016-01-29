@@ -63,7 +63,9 @@ def learn_rf(features,labels,keys):
     difference = []
     for d in np.c_[test_label,predicted_label]:
         difference.append(abs(float(d[0])-float(d[1])))
-    print(sum(difference)/len(difference))
+    print(max(difference)*3.6)
+    print(min(difference)*3.6)
+    print(sum(difference)/len(difference)*3.6)
     print(sum(difference)/len(difference)*60)
 
 ##--------------プログラム開始------------------
@@ -85,5 +87,5 @@ if __name__ == '__main__':
     kmeans_model = KMeans(n_clusters=9, random_state=1).fit(all_data)
     labels = kmeans_model.labels_
     
-##    learn_nn(features,labels,keys)
+    learn_nn(features,labels,keys)
     learn_rf(features,labels,keys)
