@@ -165,7 +165,10 @@ def get_files(path):
 ##                keys = temp.keys()
 ##                funcs.write_csv(path+segment_id + '_' + effort_id + '.csv',temp,keys)
                 with open(out_path+segment_id + '_' + effort_id + '.json', 'w') as f:
-                    json.dump(temp, f, sort_keys=True, indent=4)
+                    try:
+                        json.dump(temp, f, sort_keys=True, indent=4)
+                    finally:
+                        f.close()
                 
 ##    csvに書き出す要素をkeyで指定
 ##    keys = ['userid','month','hour']
@@ -198,6 +201,7 @@ def get_data(path):
         grades_dict = get_grades(stream_data)
         distances_dict = get_distances(stream_data)
         temp = {'userid':effort_data['userid'],
+                'segmentid':effort_data['segmentid'],
                 'startDate':effort_data['startDate'],
                 'elapsedTime':effort_data['elapsedTime'],
                 'year':effort_data['startDateLocal']['date']['year'],
@@ -235,8 +239,12 @@ def get_data(path):
 ##                keys = temp.keys()
 ##                funcs.write_csv(path+segment_id + '_' + effort_id + '.csv',temp,keys)
         with open(out_path+segment_id + '_' + effort_id + '.json', 'w') as f:
-            json.dump(temp, f, sort_keys=True, indent=4)
-        return temp
+            try:
+                json.dump(temp, f, sort_keys=True, indent=4)
+                return temp
+            finally:
+                f.close()
+    return None
     
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
@@ -259,12 +267,13 @@ if __name__ == '__main__':
     p = multiprocessing.Pool()
     p.daemon = True
 ##    funcs.remove_none(p.map(get_files,dirs))
-    data_list = []
-    for paths in p.imap(get_filepath,dirs):
-        for data in p.imap(get_data,paths):
-            data_list.append(data)
-    p.close()
-##    データ取得終了したら全データをcsvに書き出し
-    keys = data_list[0].keys()
-    funcs.write_csv(".\\results\\user_data_all.csv",data_list,keys)
+    f = open('.\\results\\user_data_all.csv', 'w')
+    try:
+        for paths in p.imap_unordered(get_filepath,dirs):
+            for data in p.imap_unordered(get_data,paths):
+                if data is not None:
+                    funcs.write_csv_onedata(f,data)
+    finally:
+        p.close()
+        f.close()
     funcs.end_program()

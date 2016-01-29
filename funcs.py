@@ -18,6 +18,15 @@ def write_csv(fname,data,keys):
         writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")
         writer.writerows(data)
 
+##ファイルオブジェクト,データdict
+def write_csv_onedata(f,data):
+    keys = list(data.keys())
+    if f.tell() == 0:
+        writer = csv.writer(f, lineterminator="\n")
+        writer.writerow(keys)
+    writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")        
+    writer.writerows([data])
+
 ##jsonのデコード
 def decode_json(file):
     ##f = open("7417_132941303.json")
@@ -103,15 +112,28 @@ def get_abspath(path):
     os.chdir(curpath)
     return ret_dirs
 
+##ログファイルの書き込み
+def write_log(text):
+    # 追記モードで出力
+    f = open( 'runlog.txt', 'a' )
+    try:
+        f.write(text+'\n')
+    finally:
+        f.close()
+
 ##プログラムの開始時SE
 def start_program():
     winsound.PlaySound('se\\se_moa01.wav',winsound.SND_FILENAME)
-    print(datetime.now().strftime("%Y%m%d%H%M%S"))
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    print(time)
+    write_log('start:'+time)
 
 ##プログラムの終了時SE
 def end_program():
     winsound.PlaySound('se\\se_moc07.wav',winsound.SND_FILENAME)
-    print(datetime.now().strftime("%Y%m%d%H%M%S"))
+    time = datetime.now().strftime("%Y%m%d%H%M%S")
+    print(time)
+    write_log('end:'+time)
 
 ##ディレクトリの作成
 def make_dir(path):
