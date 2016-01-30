@@ -8,6 +8,7 @@ import winsound
 import re
 from datetime import datetime
 import numpy as np
+import inspect
 
 ##ファイル名,データ配列,保存したいキー値
 def write_csv(fname,data,keys):
@@ -21,7 +22,7 @@ def write_csv(fname,data,keys):
 ##ファイルオブジェクト,データdict
 ##keysをソートしてから出力しないと、でたらめなファイルになる。
 def write_csv_onedata(f,data):
-    keys = list(data.keys()).sort()
+    keys = sorted(list(data.keys()))
     if f.tell() == 0:
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(keys)
@@ -125,16 +126,20 @@ def write_log(text):
 ##プログラムの開始時SE
 def start_program():
     winsound.PlaySound('se\\se_moa01.wav',winsound.SND_FILENAME)
+    filename = inspect.currentframe().f_back.f_code.co_filename
     time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    print(time)
-    write_log('start:'+time)
+    line = 'start:'+filename+' on:'+time
+    print(line)
+    write_log(line)
 
 ##プログラムの終了時SE
 def end_program():
     winsound.PlaySound('se\\se_moc07.wav',winsound.SND_FILENAME)
+    filename = inspect.currentframe().f_back.f_code.co_filename
     time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    print(time)
-    write_log('end:'+time)
+    line = 'end:'+filename+' on:'+time
+    print(line)
+    write_log(line)
 
 ##ディレクトリの作成
 def make_dir(path):

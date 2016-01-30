@@ -202,6 +202,7 @@ def get_data(path):
         distances_dict = get_distances(stream_data)
         temp = {'userid':effort_data['userid'],
                 'segmentid':effort_data['segmentid'],
+                'climbCategory':effort_data['segment']['climbCategory'],
                 'startDate':effort_data['startDate'],
                 'elapsedTime':effort_data['elapsedTime'],
                 'year':effort_data['startDateLocal']['date']['year'],
@@ -234,7 +235,7 @@ def get_data(path):
         user_id = str(effort_data['userid'])
         effort_id = str(effort_data['id'])
         climb_category = str(effort_data['segment']['climbCategory'])
-        out_path = '.\\results\\data_for_each_category_3\\'+user_id+'\\'+climb_category+'\\'
+        out_path = '.\\results\\data_for_each_category_4\\'+user_id+'\\'+climb_category+'\\'
         funcs.make_dir(out_path)
 ##                keys = temp.keys()
 ##                funcs.write_csv(path+segment_id + '_' + effort_id + '.csv',temp,keys)
@@ -267,7 +268,7 @@ if __name__ == '__main__':
     p = multiprocessing.Pool()
     p.daemon = True
 ##    funcs.remove_none(p.map(get_files,dirs))
-    f = open('.\\results\\user_data_all.csv', 'w')
+    f = open('.\\results\\user_data_all'+datetime.now().strftime("%Y%m%d%H%M%S")+'.csv', 'w')
     try:
         for paths in p.imap_unordered(get_filepath,dirs):
             for data in p.imap_unordered(get_data,paths):
