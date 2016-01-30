@@ -10,6 +10,7 @@ from datetime import datetime
 import numpy as np
 import inspect
 
+
 ##ファイル名,データ配列,保存したいキー値
 def write_csv(fname,data,keys):
     header = dict([(val,val)for val in keys])
@@ -22,12 +23,12 @@ def write_csv(fname,data,keys):
 ##ファイルオブジェクト,データdict
 ##keysをソートしてから出力しないと、でたらめなファイルになる。
 def write_csv_onedata(f,data):
-    keys = sorted(list(data.keys()))
+    keys = sorted(data.keys())
     if f.tell() == 0:
         writer = csv.writer(f, lineterminator="\n")
         writer.writerow(keys)
-    writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")        
-    writer.writerows([data])
+    writer = csv.DictWriter(f, keys, lineterminator="\n")        
+    writer.writerow(data)
 
 ##jsonのデコード
 def decode_json(file):

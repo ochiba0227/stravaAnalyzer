@@ -86,6 +86,11 @@ def get_speeds(stream_data):
         return_dict['maxSpeedMoving'] = maxspeed
         return_dict['maxSpeedLatMoving'] = points[key_m]['latitude']
         return_dict['maxSpeedLngMoving'] = points[key_m]['longitude']
+    else:
+        return_dict['averageSpeedMoving'] = -1
+        return_dict['maxSpeedMoving'] = -1
+        return_dict['maxSpeedLatMoving'] = -1
+        return_dict['maxSpeedLngMoving'] = -1
 
     return_dict.update(get_speeds_grade(speed,grade))
     return return_dict
@@ -268,7 +273,7 @@ if __name__ == '__main__':
     p = multiprocessing.Pool()
     p.daemon = True
 ##    funcs.remove_none(p.map(get_files,dirs))
-    f = open('.\\results\\user_data_all'+datetime.now().strftime("%Y%m%d%H%M%S")+'.csv', 'w')
+    f = open('.\\results\\user_data_all'+datetime.now().strftime("%Y%m%d_%H%M%S")+'.csv', 'w')
     try:
         for paths in p.imap_unordered(get_filepath,dirs):
             for data in p.imap_unordered(get_data,paths):

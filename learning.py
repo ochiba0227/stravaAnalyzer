@@ -30,12 +30,11 @@ def dicttolist_withkeys(dict_data,keys):
 ##    得たラベルからユーザタイプ分類のためのNNの学習
 ##    inputとtestデータは元データからそれぞれ半分ずつ
 def learn_nn(features,labels):
-    number = len(features)
-    half = int(number / 2)
+    half = int(len(features) / 2)
     training_data = features[:half]
     training_label = labels[:half]
-    test_data = features[number-half:]
-    test_label = labels[number-half:]
+    test_data = features[half:]
+    test_label = labels[half:]
     clf = MLPClassifier(algorithm='l-bfgs', alpha=1e-5, hidden_layer_sizes=(5,9), random_state=1)
     clf.fit(training_data, training_label)
     predicted_label = clf.predict(test_data)
@@ -113,7 +112,8 @@ def find_userid(datalist,uid):
 def get_average(tup):
     uid = tup[0]
     data = tup[1]
-    return uid, np.sum((np.array(data['data']).astype(np.float))[:,1:4],axis=0)/len(data['data'])
+    ##        np.nansumでnanを無視した合計を取ってくれる便利なヤツ
+    return uid, np.nansum((np.array(data['data']).astype(np.float))[:,1:4],axis=0)/len(data['data']),len(data['climbCategory'])
 
 ##keyに基づいてdicからデータを取得
 ##keyのなかでデータがないものがあれば省く
@@ -121,9 +121,9 @@ def make_onedata(dic,keys):
     data = []
     for key in keys:
         d = dic[key]
-##        データが存在しない場合とおかしそうな場合を無視
-        if d is None or d == '-1' or d == '':
-            return None,None
+##        データが存在しない場合無視するためにNoneを代入
+        if d == '-1':
+            d = None
         data.append(d)
     return data,dic['userid'],dic['climbCategory']
 
@@ -143,15 +143,19 @@ if __name__ == '__main__':
     funcs.start_program()
     p = multiprocessing.Pool()
     p.daemon = True
-    f = open('F:\\study\\analiser\\results\\user_data_all.csv', 'r')
+    f = open('F:\\study\\analiser\\results\\user_data_all20160131022824.csv', 'r')
     reader = csv.DictReader(f)
     all_data = {}
 ##    keys通りの並びでデータが帰ってくる
     keys = ['averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','distance','averageGrade']
     try:
         for data,userid,climbCategory in p.imap_unordered(functools.partial(make_onedata,keys=keys),reader):
+##            データがおかしかったり抜けがある場合
             if data is None:
                 continue
+####            5km以上のセグメントのみを取り扱う
+##            if float(data[len(keys)-2]) < 5000:
+##                continue
             if userid not in all_data.keys():
                 all_data[userid] = {'data':[],'climbCategory':{}}
             all_data[userid]['data'].append(data)
@@ -159,9 +163,11 @@ if __name__ == '__main__':
 ##        各列ごとのデータの平均をとる
         uids = []
         data_forkm = []
-        for uid,data in p.imap_unordered(get_average,all_data.items()):
-            uids.append(uid)
-            data_forkm.append(data)
+        for uid,data,climbCategory in p.imap_unordered(get_average,all_data.items()):
+##            全カテゴリの走行データがある場合
+            if climbCategory == 6:
+                uids.append(uid)
+                data_forkm.append(data)
         ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
         ##除去した後明示的にstrからfloatへ変換
         ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
@@ -174,5 +180,4 @@ if __name__ == '__main__':
     finally:
         p.close()
         f.close()
-
     funcs.end_program()
