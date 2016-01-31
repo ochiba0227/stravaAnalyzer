@@ -279,6 +279,8 @@ if __name__ == '__main__':
             for data in p.imap_unordered(get_data,paths):
                 if data is not None:
                     funcs.write_csv_onedata(f,data)
+    except:
+        p.terminate()
     finally:
         p.close()
         f.close()

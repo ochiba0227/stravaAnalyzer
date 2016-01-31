@@ -10,6 +10,7 @@ from sklearn.metrics import precision_score, recall_score
 from sklearn import cross_validation
 from sklearn.metrics import classification_report
 from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.mixture import GMM
 import multiprocessing
 import functools
 import funcs
@@ -30,6 +31,7 @@ def dicttolist_withkeys(dict_data,keys):
 ##    得たラベルからユーザタイプ分類のためのNNの学習
 ##    inputとtestデータは元データからそれぞれ半分ずつ
 def learn_nn(features,labels):
+    features = features.astype(np.float)
     half = int(len(features) / 2)
     training_data = features[:half]
     training_label = labels[:half]
@@ -112,8 +114,13 @@ def find_userid(datalist,uid):
 def get_average(tup):
     uid = tup[0]
     data = tup[1]
-    ##        np.nansumでnanを無視した合計を取ってくれる便利なヤツ
-    return uid, np.nansum((np.array(data['data']).astype(np.float))[:,1:4],axis=0)/len(data['data']),len(data['climbCategory'])
+    speed_array = np.array(data['data']).astype(np.float)[:,1:4]
+##    nan要素をマスキングで計算に現れずにする
+    masked_array = np.ma.masked_array(speed_array,np.isnan(speed_array))
+    speed = np.mean(masked_array,axis=0)
+    ##        np.nansumでnanを無視した合計を取ってくれる便利なヤツあり
+##    maskした後mean取ると--になっているところを無視して平均取ってくれる
+    return uid, speed,len(data['climbCategory'])
 
 ##keyに基づいてdicからデータを取得
 ##keyのなかでデータがないものがあれば省く
@@ -137,25 +144,41 @@ def update_climbCategory(dic,climbCategory):
         dic[climbCategory] = 1
     return dic
 
+##dataforkmからaveragespeed_gradeの内容だけを持ち、ほかはダミーなcsvを作成
+def output_file_forkm(data_forkm,uids):
+    diclist = []
+    for index in range(len(data_forkm)):
+        dic = {'averageSpeedNeggrade':data_forkm[index][0],
+               'averageSpeedPosgrade':data_forkm[index][2],
+               'likecategory':"FF",
+               'averageSpeed':10000,
+               'userid':uids[index],
+               'averageSpeedNograde':data_forkm[index][1]} 
+        diclist.append(dic)
+        
+    keys = diclist[0].keys()
+    diclist.insert(0,keys)
+    f = open('F:\\study\\analiser\\results\\typetetetete.csv', 'w')
+    writer = csv.DictWriter(f, keys, lineterminator="\n")
+    writer.writerows(diclist)
+    f.close()
+
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
     funcs.start_program()
     p = multiprocessing.Pool()
     p.daemon = True
-    f = open('F:\\study\\analiser\\results\\user_data_all20160131022824.csv', 'r')
+    f = open('F:\\study\\analiser\\results\\user_data_all20160131_023720.csv', 'r')
     reader = csv.DictReader(f)
     all_data = {}
 ##    keys通りの並びでデータが帰ってくる
     keys = ['averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','distance','averageGrade']
     try:
         for data,userid,climbCategory in p.imap_unordered(functools.partial(make_onedata,keys=keys),reader):
-##            データがおかしかったり抜けがある場合
-            if data is None:
+##            記録開始だけして動いていないデータを削除
+            if float(data[len(keys)-2]) < 5:
                 continue
-####            5km以上のセグメントのみを取り扱う
-##            if float(data[len(keys)-2]) < 5000:
-##                continue
             if userid not in all_data.keys():
                 all_data[userid] = {'data':[],'climbCategory':{}}
             all_data[userid]['data'].append(data)
@@ -164,6 +187,9 @@ if __name__ == '__main__':
         uids = []
         data_forkm = []
         for uid,data,climbCategory in p.imap_unordered(get_average,all_data.items()):
+##            全部nanの行がある場合を排除
+            if True in data.mask:
+                continue
 ##            全カテゴリの走行データがある場合
             if climbCategory == 6:
                 uids.append(uid)
@@ -171,13 +197,28 @@ if __name__ == '__main__':
         ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
         ##除去した後明示的にstrからfloatへ変換
         ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
+##        g = GMM(n_components=2)
+##        g.fit(data_forkm)
+        output_file_forkm(data_forkm,uids)
         kmeans_model = KMeans(n_clusters=9, random_state=1).fit(data_forkm)
         labels = kmeans_model.labels_
         learn_nn(data_forkm,labels)
 ##        learn_rf(features,labels,keys)
 ##        
 ##        learn_ra(features)
+    except:
+        p.terminate()
     finally:
         p.close()
         f.close()
     funcs.end_program()
+
+##a = np.array([[2,None,2],[2,2,2]]).astype(np.float)
+##print(a)
+##print(np.nansum(a,axis=0)/2)
+##print(a.shape)
+##print(np.isnan(a))
+##mdat = np.ma.masked_array(a,np.isnan(a))
+##print(mdat)
+##mm = np.mean(mdat,axis=0)
+##print(mm)

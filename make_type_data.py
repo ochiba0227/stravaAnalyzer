@@ -43,6 +43,7 @@ def get_userdata(path):
         return ret_dict
     except Exception as e:
         print("Error:"+path)
+        print(e)
 
 ##全クライムカテゴリの走行データがあるユーザのディレクトリを取得
 def check_have_allcategories(d):
@@ -65,7 +66,7 @@ if __name__ == '__main__':
  
 ##get_with_userdataな場合
     funcs.start_program()
-    working_path = 'F:\\study\\analiser\\results\\data_for_each_category\\'
+    working_path = 'F:\\study\\analiser\\results\\data_for_each_category_4\\'
     dirs = os.listdir(working_path)
     dirs = funcs.add_workingpath(dirs,working_path)
     p = multiprocessing.Pool()
@@ -74,5 +75,5 @@ if __name__ == '__main__':
     users = funcs.remove_none(p.map(get_userdata,dirs))
     p.close()
     keys = users[0].keys()
-    funcs.write_csv('results\\type_data.csv',users,keys)
+    funcs.write_csv('results\\type_data'+datetime.now().strftime("%Y%m%d_%H%M%S")+'.csv',users,keys)
     funcs.end_program()
