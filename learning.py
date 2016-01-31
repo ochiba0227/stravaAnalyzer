@@ -28,24 +28,53 @@ def dicttolist_withkeys(dict_data,keys):
         userlist.append(temp)
     return userlist
 
+##入力データと入力ラベルに基づいたニューラルネットワークのチューニング
+def tune_nn(features,labels):
+    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,7))),
+                   'hidden_layer_sizes':list(range(50,150))}]
+    model = MLPClassifier(activation='logistic',algorithm='l-bfgs', random_state=1)
+    clf = GridSearchCV(model, parameters, cv=5, n_jobs=-1)
+    clf.fit(train_data,train_label)
+    print(clf.best_estimator_)
+    predicted_label = clf.predict(test_data)
+    print(classification_report(test_label, predicted_label,digits = 3))
+    return clf
+
+##入力データと入力ラベルに基づいたランダムフォレストのチューニング
+def tune_rf(features,labels):
+    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    parameters = [{'max_features':['auto','log2'],
+                   'n_estimators':list(range(10,250))}]
+    model = RandomForestClassifier(random_state=1)
+    clf = GridSearchCV(nn, parameters, cv=5, n_jobs=-1)
+    clf.fit(train_data,train_label)
+    print(clf.best_estimator_)
+    predicted_label = clf.predict(test_data)
+    print(classification_report(test_label, predicted_label,digits = 3))
+    return clf
+
 ##    得たラベルからユーザタイプ分類のためのNNの学習
 ##    inputとtestデータは元データからそれぞれ半分ずつ
 def learn_nn(features,labels):
-    features = features.astype(np.float)
-    half = int(len(features) / 2)
-    training_data = features[:half]
-    training_label = labels[:half]
-    test_data = features[half:]
-    test_label = labels[half:]
-    clf = MLPClassifier(algorithm='l-bfgs', alpha=1e-5, hidden_layer_sizes=(5,9), random_state=1)
-    clf.fit(training_data, training_label)
-    predicted_label = clf.predict(test_data)
-    print("precision:"+str(precision_score(test_label, predicted_label, average='binary')))
-    print("recall:"+str(recall_score(test_label, predicted_label, average='binary')))
+    clf = MLPClassifier(algorithm='l-bfgs', alpha=0.1, hidden_layer_sizes=83, random_state=1)
+####    トレーニングデータとテストデータを半分に割った場合
+##    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+##        features,labels,test_size=0.5,random_state=1)
+##    clf.fit(training_data, training_label)
+##    predicted_label = clf.predict(test_data)
+##    print("precision:"+str(precision_score(test_label, predicted_label, average='binary')))
+##    print("recall:"+str(recall_score(test_label, predicted_label, average='binary')))
+##    print(classification_report(test_label, predicted_label, digits = 3))
+##    クロスバリデーション
     scores = cross_validation.cross_val_score(clf,features,labels,cv=10)
+    print(scores)
     print((scores.mean(), scores.std() * 2))
-    target_names = ['class 0', 'class 1', 'class 2','class 3', 'class 4', 'class 5', 'class 6', 'class 7', 'class 8']
-    print(classification_report(test_label, predicted_label, target_names=target_names,digits = 3))
+    preds = cross_validation.cross_val_predict(clf,features,labels,cv=10)
+    print(preds)
+    print((preds.mean(), preds.std() * 2))
 
 ##    得たラベルから速度計算のためのRandomForestの学習
 def learn_rf(features,labels,keys):
@@ -131,8 +160,27 @@ def make_onedata(dic,keys):
 ##        データが存在しない場合無視するためにNoneを代入
         if d == '-1':
             d = None
+        elif key.find("Speed") == 1:
+            d = float(d)
         data.append(d)
     return data,dic['userid'],dic['climbCategory']
+
+##ユーザデータにラベルを付与
+##現在は欠損値があるデータを削除している
+def add_labels(tup,uids,labels):
+    uid = tup[0]
+    data = tup[1]
+
+    if uid not in uids:
+        return None
+    data = np.array(data['data']).astype(np.float)
+##    欠損値を削除
+    data = data[~np.isnan(data).any(axis=1)]
+    if len(data) == 0:
+        print(uid)
+        return None
+    label = np.array([labels[uids.index(uid)]]*len(data))
+    return np.c_[data,label]
 
 ##climbCategory毎の回数を記録
 ##pythonは引数で与えられた変数を直接弄る？
@@ -156,8 +204,9 @@ def output_file_forkm(data_forkm,uids):
                'averageSpeedNograde':data_forkm[index][1]} 
         diclist.append(dic)
         
-    keys = diclist[0].keys()
-    diclist.insert(0,keys)
+    keys = list(diclist[0].keys())
+    header = dict([(val,val)for val in keys])
+    diclist.insert(0,header)
     f = open('F:\\study\\analiser\\results\\typetetetete.csv', 'w')
     writer = csv.DictWriter(f, keys, lineterminator="\n")
     writer.writerows(diclist)
@@ -185,7 +234,7 @@ if __name__ == '__main__':
             update_climbCategory(all_data[userid]['climbCategory'],climbCategory)
 ##        各列ごとのデータの平均をとる
         uids = []
-        data_forkm = []
+        data_forlabel = []
         for uid,data,climbCategory in p.imap_unordered(get_average,all_data.items()):
 ##            全部nanの行がある場合を排除
             if True in data.mask:
@@ -193,21 +242,28 @@ if __name__ == '__main__':
 ##            全カテゴリの走行データがある場合
             if climbCategory == 6:
                 uids.append(uid)
-                data_forkm.append(data)
+                data_forlabel.append(data)
         ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
         ##除去した後明示的にstrからfloatへ変換
         ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
-##        g = GMM(n_components=2)
-##        g.fit(data_forkm)
-        output_file_forkm(data_forkm,uids)
-        kmeans_model = KMeans(n_clusters=9, random_state=1).fit(data_forkm)
+        kmeans_model = KMeans(n_clusters=9, random_state=1).fit(data_forlabel)
         labels = kmeans_model.labels_
-        learn_nn(data_forkm,labels)
-##        learn_rf(features,labels,keys)
+        learn_nn(data_forlabel,labels)
+
+##        各行にラベルを付与
+        data_forreg = []
+        for data in p.imap_unordered(functools.partial(add_labels,uids=uids,labels=labels),all_data.items()):
+            if data:
+                data_forreg.extend(data)
+        features = data_forreg[1:]
+        labels = data_forreg[0]
+        tune_rf(features,labels)
+##        learn_rf(features,labels)
 ##        
 ##        learn_ra(features)
-    except:
-        p.terminate()
+##    except Exception as e:
+##        print('error:'+str(e))
+##        p.terminate()
     finally:
         p.close()
         f.close()
