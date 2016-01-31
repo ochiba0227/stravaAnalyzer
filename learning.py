@@ -4,13 +4,13 @@ import numpy as np
 from sklearn.cluster import KMeans
 from matplotlib import pylab
 from mpl_toolkits.mplot3d import Axes3D
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.metrics import precision_score, recall_score
 from sklearn import cross_validation
 from sklearn.metrics import classification_report
 from sklearn.linear_model import LogisticRegression, LinearRegression
-from sklearn.mixture import GMM
+from sklearn.grid_search import GridSearchCV
 import multiprocessing
 import functools
 import funcs
@@ -28,28 +28,28 @@ def dicttolist_withkeys(dict_data,keys):
         userlist.append(temp)
     return userlist
 
-##入力データと入力ラベルに基づいたニューラルネットワークのチューニング
-def tune_nn(features,labels):
+##入力データと入力ラベルに基づいたニューラルネットワークの分類器のチューニング
+def tune_nn_classifier(features,labels):
     train_data,test_data,train_label,test_label = cross_validation.train_test_split(
         features,labels,test_size=0.5,random_state=1)
     parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,7))),
                    'hidden_layer_sizes':list(range(50,150))}]
     model = MLPClassifier(activation='logistic',algorithm='l-bfgs', random_state=1)
-    clf = GridSearchCV(model, parameters, cv=5, n_jobs=-1)
+    clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
     clf.fit(train_data,train_label)
     print(clf.best_estimator_)
     predicted_label = clf.predict(test_data)
     print(classification_report(test_label, predicted_label,digits = 3))
     return clf
 
-##入力データと入力ラベルに基づいたランダムフォレストのチューニング
-def tune_rf(features,labels):
+##入力データと入力ラベルに基づいたランダムフォレストの予測器のチューニング
+def tune_rf_regressor(features,labels):
     train_data,test_data,train_label,test_label = cross_validation.train_test_split(
         features,labels,test_size=0.5,random_state=1)
     parameters = [{'max_features':['auto','log2'],
                    'n_estimators':list(range(10,250))}]
-    model = RandomForestClassifier(random_state=1)
-    clf = GridSearchCV(nn, parameters, cv=5, n_jobs=-1)
+    model = RandomForestRegressor(random_state=1)
+    clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
     clf.fit(train_data,train_label)
     print(clf.best_estimator_)
     predicted_label = clf.predict(test_data)
@@ -253,11 +253,13 @@ if __name__ == '__main__':
 ##        各行にラベルを付与
         data_forreg = []
         for data in p.imap_unordered(functools.partial(add_labels,uids=uids,labels=labels),all_data.items()):
-            if data:
-                data_forreg.extend(data)
-        features = data_forreg[1:]
-        labels = data_forreg[0]
-        tune_rf(features,labels)
+            if data is None:
+                continue
+            data_forreg.extend(data)
+        data_forreg = np.array(data_forreg)
+        features = data_forreg[:,1:]
+        labels = data_forreg[:,0]
+        tune_rf_regressor(features,labels)
 ##        learn_rf(features,labels)
 ##        
 ##        learn_ra(features)
