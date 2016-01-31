@@ -1,14 +1,14 @@
 # encoding: utf-8
 import csv
 import numpy as np
-from sklearn.cluster import KMeans
 from matplotlib import pylab
+import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+from sklearn.cluster import KMeans
 from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.metrics import precision_score, recall_score
+from sklearn.metrics import precision_score, recall_score, classification_report, confusion_matrix,r2_score
 from sklearn import cross_validation
-from sklearn.metrics import classification_report
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.grid_search import GridSearchCV
 import multiprocessing
@@ -42,32 +42,46 @@ def tune_nn_classifier(features,labels):
     print(classification_report(test_label, predicted_label,digits = 3))
     return clf
 
+##入力データと入力ラベルに基づいたニューラルネットワークの予測器のチューニング
+def tune_nn_regressor(features,labels):
+    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,7))),
+                   'hidden_layer_sizes':list(range(50,100,10))}]
+##    parameters = [{'hidden_layer_sizes':list(range(50,100,10))}]
+    model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.0001)
+    clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
+    clf.fit(train_data,train_label)
+    print(clf.best_estimator_)
+    return clf    
+
 ##入力データと入力ラベルに基づいたランダムフォレストの予測器のチューニング
 def tune_rf_regressor(features,labels):
     train_data,test_data,train_label,test_label = cross_validation.train_test_split(
         features,labels,test_size=0.5,random_state=1)
     parameters = [{'max_features':['auto','log2'],
-                   'n_estimators':list(range(10,250))}]
+##n_estimatorsは<50で探索すべき
+                   'n_estimators':list(range(10,50,10))}]
     model = RandomForestRegressor(random_state=1)
     clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
     clf.fit(train_data,train_label)
     print(clf.best_estimator_)
-    predicted_label = clf.predict(test_data)
-    print(classification_report(test_label, predicted_label,digits = 3))
     return clf
 
 ##    得たラベルからユーザタイプ分類のためのNNの学習
 ##    inputとtestデータは元データからそれぞれ半分ずつ
 def learn_nn(features,labels):
+    ##    トレーニングデータとテストデータを半分に割った場合
+    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
     clf = MLPClassifier(algorithm='l-bfgs', alpha=0.1, hidden_layer_sizes=83, random_state=1)
-####    トレーニングデータとテストデータを半分に割った場合
-##    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
-##        features,labels,test_size=0.5,random_state=1)
-##    clf.fit(training_data, training_label)
-##    predicted_label = clf.predict(test_data)
-##    print("precision:"+str(precision_score(test_label, predicted_label, average='binary')))
-##    print("recall:"+str(recall_score(test_label, predicted_label, average='binary')))
-##    print(classification_report(test_label, predicted_label, digits = 3))
+    clf.fit(training_data, training_label)
+    predicted_label = clf.predict(test_data)
+    print("precision:"+str(precision_score(test_label, predicted_label, average='binary')))
+    print("recall:"+str(recall_score(test_label, predicted_label, average='binary')))
+    
+    print(classification_report(test_label, predicted_label, digits = 3))
+    print(confusion_matrix(test_label, predicted_label))
 ##    クロスバリデーション
     scores = cross_validation.cross_val_score(clf,features,labels,cv=10)
     print(scores)
@@ -76,22 +90,31 @@ def learn_nn(features,labels):
     print(preds)
     print((preds.mean(), preds.std() * 2))
 
-##    得たラベルから速度計算のためのRandomForestの学習
-def learn_rf(features,labels,keys):
-    number = len(features)
-    half = int(number / 2)
-##    np.cで行列を横向きに結合
-##    training_data = np.c_[features[:half,1:len(keys)-2].astype('float'),labels[:half]]
-    training_data = features[:half,1:len(keys)-2].astype('float')
-    training_label = features[:half,0]
-##    test_data = np.c_[features[number-half:,1:len(keys)-2].astype('float'),labels[number-half:]]
-    test_data = features[number-half:,1:len(keys)-2].astype('float')
-    test_label = features[number-half:,0]
-    model = RandomForestClassifier(n_estimators=250)
+##    得たラベルから速度計算のためのNNの学習
+def regression_nn(features,labels):
+    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.0001,hidden_layer_sizes=90)
     model.fit(training_data,training_label)
     predicted_label = model.predict(test_data)
-##    print("precision:"+str(precision_score(test_label, predicted_label, average='binary')))
-##    print("recall:"+str(recall_score(test_label, predicted_label, average='binary')))
+    print(r2_score(test_label,predicted_label))
+    difference = []
+    for d in np.c_[test_label,predicted_label]:
+        difference.append(abs(float(d[0])-float(d[1])))
+    print(max(difference)*3.6)
+    print(min(difference)*3.6)
+    print(sum(difference)/len(difference)*3.6)
+    print(sum(difference)/len(difference)*60)
+
+##    得たラベルから速度計算のためのRandomForestの学習
+def regression_rf(features,labels):
+    ##    トレーニングデータとテストデータを半分に割った場合
+    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    model = RandomForestRegressor(n_estimators=50,max_features='log2', random_state=1)
+    model.fit(training_data,training_label)
+    predicted_label = model.predict(test_data)
+    print(r2_score(test_label,predicted_label))
 ##各木で出た数値の平均を取れないか？
     difference = []
     for d in np.c_[test_label,predicted_label]:
@@ -248,6 +271,7 @@ if __name__ == '__main__':
         ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
         kmeans_model = KMeans(n_clusters=9, random_state=1).fit(data_forlabel)
         labels = kmeans_model.labels_
+        print(kmeans_model.cluster_centers_)
         learn_nn(data_forlabel,labels)
 
 ##        各行にラベルを付与
@@ -259,8 +283,16 @@ if __name__ == '__main__':
         data_forreg = np.array(data_forreg)
         features = data_forreg[:,1:]
         labels = data_forreg[:,0]
-        tune_rf_regressor(features,labels)
-##        learn_rf(features,labels)
+##        チューニング用の関数
+##        tune_rf_regressor(features,labels)
+##        tune_nn_regressor(features,labels)
+        regression_rf(features,labels)
+        regression_nn(features,labels)
+
+##        距離，平均勾配，ユーザタイプから平均速度が予測できるか
+        features = data_forreg[:,4:]
+        rfmodel = tune_rf_regressor(features,labels)
+        nnmodel = tune_nn_regressor(features,labels)
 ##        
 ##        learn_ra(features)
 ##    except Exception as e:
