@@ -1,6 +1,8 @@
 # encoding: utf-8
 import csv
 import numpy as np
+import os
+import pandas as pd
 from matplotlib import pylab
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
@@ -31,24 +33,23 @@ def find_userid(datalist,uid):
 ##入力データと入力ラベルに基づいてMSに最適なパラメータを探索
 def tune_MS(data):
     mss = []
-    bandwidth_range = []
-    quantile_range = np.array(range(1, 20))/20
-    for quantile in quantile_range:
-        bandwidth_range.append(estimate_bandwidth(data, quantile=quantile, random_state=1))
+    range_max = 20
+    bandwidth_range = 0.35 + (np.array(range(0, range_max+1))-(range_max/2))*0.001
     for bandwidth in bandwidth_range:
         ms = MeanShift(bandwidth=bandwidth, n_jobs=-2)
         ms.fit(data)
-        mss.append((bandwidth,ms))
-
-    metrics=['cosine','euclidean','l1','l2','manhattan']
-    distance_max = -np.inf
+        mss.append(ms)
+        
+    metrics=['cityblock', 'cosine', 'euclidean', 'l1', 'l2', 'manhattan']
+    distance_max = 0
     retms = mss[0]
     for metric in metrics:
         print(metric)
         print("-------------")
         for ms in mss:
-            print(np.mean(pairwise_distances(ms.labels_,n_jobs=-2),axis=0))
-            distance = np.mean(pairwise_distances(ms.labels_,n_jobs=-2),axis=0)
+            distance = pairwise_distances(ms.cluster_centers_,metric=metric,n_jobs=-2)
+            print(np.mean(distance,axis=0))
+            distance = np.mean(distance)
             if distance > distance_max:
                 distance_max = distance
                 retms = ms
@@ -198,22 +199,18 @@ def makeuserdata_from_file(path):
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
     funcs.start_program()
-    file = funcs.get_fileobj('middata.csv','r',None)
-    if file is None:
+    filepath = funcs.get_filepath('middata.csv',None)
+    if os.path.exists(filepath) is False:
         print("DATA FROM FILE!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        makeuserdata_from_file('F:\\study\\analiser\\results\\user_data_all20160131_023720.csv')
-    try:
-        reader = csv.reader(file)
-        keys = next(reader)
-        data = []
-        for row in reader:
-            data.append(row)
-        data = np.array(data).astype(np.float)
-    finally:
-        file.close()
+        data = makeuserdata_from_file('F:\\study\\analiser\\results\\user_data_all20160131_023720.csv')
+    else:
+        df = pd.read_csv(filepath)
+        data = np.array(df).astype(np.float)
+
+##    クラスタリング開始
     uids = data[:,0]
     data = data[:,2:5]
-    scaled_data = data
+    scaled_data = scale(data)
 ##kmeansでクラスタリング
     kmeans_model = KMeans(n_clusters=9, random_state=1)
     kmeans_model.fit(scale(scaled_data))
@@ -225,7 +222,10 @@ if __name__ == '__main__':
     gmm = tune_GMM(scaled_data)
     gm_labels = gmm.predict(scaled_data)
 
-    ms_model = tune_MS(scaled_data)
+##MeanShiftでクラスタリング
+##    ms_model = tune_MS(scaled_data)
+    ms_model = MeanShift(bandwidth=0.35299999999999998)
+    ms_model.fit(scaled_data)
     ms_labels = ms_model.labels_
     
     try:

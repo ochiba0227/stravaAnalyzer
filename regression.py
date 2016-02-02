@@ -1,5 +1,6 @@
 # encoding: utf-8
 import time
+import random
 import os
 import csv
 import itertools
@@ -102,21 +103,21 @@ from datetime import datetime
 ##    print(preds)
 ##    print((preds.mean(), preds.std() * 2))
 ##
-####    得たラベルから速度計算のためのNNの学習
-##def regression_nn(features,labels,model):
-##    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
-##        features,labels,test_size=0.5,random_state=1)
-##    model.fit(training_data,training_label)
-##    predicted_label = model.predict(test_data)
-##    print(model)
-##    print(r2_score(test_label,predicted_label))
-##    difference = []
-##    for d in np.c_[test_label,predicted_label]:
-##        difference.append(abs(float(d[0])-float(d[1])))
-##    print(max(difference)*3.6)
-##    print(min(difference)*3.6)
-##    print(sum(difference)/len(difference)*3.6)
-##    print(sum(difference)/len(difference)*60)
+##    得たラベルから速度計算のためのNNの学習
+def regression_nn(features,labels,model):
+    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    model.fit(training_data,training_label)
+    predicted_label = model.predict(test_data)
+    print(model)
+    print(r2_score(test_label,predicted_label))
+    difference = []
+    for d in np.c_[test_label,predicted_label]:
+        difference.append(abs(float(d[0])-float(d[1])))
+    print(max(difference)*3.6)
+    print(min(difference)*3.6)
+    print(sum(difference)/len(difference)*3.6)
+    print(sum(difference)/len(difference)*60)
 ##
 ####    得たラベルから速度計算のためのRandomForestの学習
 ##def regression_rf(features,labels,model):
@@ -225,106 +226,75 @@ from datetime import datetime
 ##        dic[climbCategory] = 1
 ##    return dic
 
-##ファイル名がjsonかどうか確認する
-def is_json(file):
-    root,ext = os.path.splitext(file)
-    if ext == ".json":
-        return file
-    return None
 
-##与えられたpath以下のjsonファイルのパスを取得
-def get_filepath(path,working_path):
-    return os.path.join(working_path,path), os.listdir(os.path.join(working_path,path))
+##各クラスタに所属するデータを追加
+##target条件を満たしていたら追加しない
+def add_labeleddata(dic,data,target_datanum,labelname):
+    firsttime = False
+    label = data[labelname]
+    if label not in dic.keys():
+        dic[label] = []
+        firsttime = True
+    elif len(dic[label][0]) >= target_datanum:
+        return
+    keys = ['GRADE','ALTITUDE','DISTANCE','VELOCITY']
+    for key in keys:
+        if firsttime:
+            dic[label].append(data[key])
+        else:
+            index = keys.index(key)
+            dic[label][index].extend(data[key])
 
-##与えられたパスからjsonデータの取得
-def get_data(path):
-    data = funcs.decode_json(path)
-    if data:
-        effort_data = data['segmentEffortData']
-        stream_data = data['segmentStreamData']
-        temp = {'userid':effort_data['athlete']['id'],
-                'segmentid':effort_data['segment']['id'],
-                'climbCategory':effort_data['segment']['climbCategory'],
-                'startDate':effort_data['startDate']
-                }
-        for data in stream_data:
-            datastr = data['type']
-            if datastr == 'VELOCITY':
-                temp[datastr] = data['data']
-                temp['averageSpeed'] = np.mean(np.array(data['data']))
-            if datastr == 'DISTANCE':
-                temp[datastr] = data['data']
-            if datastr == 'GRADE':
-                temp[datastr] = data['data']
-            if datastr == 'ALTITUDE':
-                temp[datastr] = data['data']
-        return temp
-    return None
-
-##与えられたパスからユーザidを取得
-def get_userid(path):
-    data = funcs.decode_json(path)
-    if data:
-        return data['segmentEffortData']['athlete']['id']
-    return None
-
-##与えられたパスからjsonデータを読み込み走行速度の平均をとる
-def get_avespeed(path):
-    data = funcs.decode_json(path)
-    if data:
-        effort_data = data['segmentEffortData']
-        stream_data = data['segmentStreamData']
-        for data in stream_data:
-            datastr = data['type']
-            if datastr == 'VELOCITY':
-                return(np.mean(np.array(data['data'])))
-    return None
+##各クラスタに所属するデータが要求数あるか
+def hasdata_eachlabel(dic,range_,target_datanum):
+    datakeys = dic.keys()
+    for label in range_:
+        try:
+            if len(dic[label][0])<target_datanum:
+                return False
+        except Exception as e:
+            return False      
+    return True
 
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
-##    starttime = time.time()
-##    funcs.start_program()
-##    np.random.seed(0)
-##    p = multiprocessing.Pool(3)
-##    p.daemon = True
-##    df = pd.read_csv('results\\labels.csv')
-##    colnames = df.columns
-##    labeled_users = list(df[colnames[0]])
-##    km_label = list(df[colnames[1]])
-##    gmm_label = list(df[colnames[2]])
-##    try:
-##        working_path = 'F:\\study\\strava\\finished'
-##        dirs = os.listdir(working_path)
-##        all_path = []
-##        for path,filepaths in p.imap(functools.partial(get_filepath,working_path=working_path),dirs):
-##            for file in p.imap(is_json,filepaths):
-##                if file is None:
-##                    continue
-##                uid = get_userid(os.path.join(path,file))
-##                if uid is None:
-##                    continue
-##                if uid not in labeled_users:
-##                    continue
-##                index = labeled_users.index(uid)
-##                
-##                all_path.append((uid,km_label[index],gmm_label[index],os.path.join(path,file)))
-##            if len(all_path)>1000:
-##                break
-##            
-##    finally:
-##        p.close()
-##    endtime = time.time() - starttime
-##    print(("elapsed_time:{0}".format(endtime)) + "[sec]")
-##    funcs.end_program()
-##
-    try:
-        data = json.load(open('results\\data_for_regression\\20160202_233521\\0.json'))
-##        データが一つしかない場合初めからdictとして読み込まれる
-        if isinstance(data, dict):
-            data = [data]
-        for d in data:
-            pass
-    finally:
-        p.close()
+    starttime = time.time()
+    funcs.start_program()
+    np.random.seed(1)
+    random.seed(1)
+    
+    path_labeled = 'results\\data_for_regression\\20160203_011146\\labeled'
+    files = os.listdir(path_labeled)
+##    random.shuffle(files)
+
+    target_datanum = 100
+
+    km_range = np.array(range(9)).astype(np.str)
+    km_labeled = {}
+    km_ok = False
+    
+    gm_range = np.array(range(5)).astype(np.str)
+    gm_labeled = {}
+    gm_ok = False
+
+    for file in files:
+##        [{},{}]の形式でデータを取得
+        data = funcs.read_myjson(os.path.join(path_labeled,file),1,True)
+        if km_ok is False:
+            for d in data:
+                add_labeleddata(km_labeled,d,target_datanum,'km_label')
+            if hasdata_eachlabel(km_labeled,km_range,target_datanum) is True:
+                km_ok = True
+                
+        if gm_ok is False:
+            for d in data:
+                add_labeleddata(gm_labeled,d,target_datanum,'gm_label')
+            if hasdata_eachlabel(gm_labeled,gm_range,target_datanum) is True:
+                gm_ok = True
+
+        if km_ok is True and gm_ok is True:
+            break
+    darray = np.array(km_labeled[km_range[0]])
+    print(darray)
     funcs.end_program()

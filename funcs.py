@@ -210,7 +210,7 @@ def make_dir(path):
     except:
         pass
 
-##ファイルオブジェクトの取得
+##ディレクトリにあるファイルオブジェクトの取得
 ##mainとして実行されいているファイル名のディレクトリにあるデータを参照する
 ##fnameファイル名のみ，param:rwa，joinpathを指定するとファイル名の次の階層のディレクトリを作成できる
 def get_fileobj(fname,param,joinpath):
@@ -225,6 +225,16 @@ def get_fileobj(fname,param,joinpath):
     except Exception as e:
         print(e)
         return None
+
+##ディレクトリにあるファイルパスの取得
+##mainとして実行されいているファイル名のディレクトリにあるデータを参照する
+##fnameファイル名のみ，param:rwa，joinpathを指定するとファイル名の次の階層のディレクトリを作成できる
+def get_filepath(fname,joinpath):
+    root,ext = os.path.splitext(os.path.basename(inspect.currentframe().f_back.f_code.co_filename))
+    opath = os.path.join('results',root)
+    if joinpath is not None:
+        opath = os.path.join(opath,joinpath)
+    return os.path.join(opath,fname)
 
 ##辞書から最大値を持つキーを返す
 ##dict.values()とdict.keys()は対応している
