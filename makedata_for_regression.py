@@ -126,11 +126,11 @@ if __name__ == '__main__':
                     save_to = os.path.join(save_path,'notlabeled')
 
 ##                データをユーザごとにファイルに分割して保存
-                funcs.update_jsonfile(os.path.join(save_to,str(uid)+'.json'),data)
+                funcs.write_myjsonfile(os.path.join(save_to,str(uid)+'.myjson'),data)
                 write_counter+=1
-                if write_counter % 100 == 0:
+                if write_counter % 1000 == 0:
                     endtime = datetime.now() - starttime
-                    print(str(500*(write_counter+1))+':'+str(endtime))
+                    print(str(write_counter)+'/'+str(endtime))
     finally:
         pass
     funcs.end_program()

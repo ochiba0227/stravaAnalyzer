@@ -6,10 +6,12 @@ import sys
 import multiprocessing
 import winsound
 import re
+import random
 from datetime import datetime
 import numpy as np
 import inspect
 from sklearn.externals import joblib
+import linecache
 
 ##名前を指定してモデルを保存
 def save_model(model,name):
@@ -17,8 +19,38 @@ def save_model(model,name):
     make_dir(save_dir)
     joblib.dump(model, os.path.join(save_dir,name+'.pkl')) 
 
+##myjsonファイルの読み込み
+##numが指定されていれば，num個のdictを含むlistを返す
+##randflagがTrueで与えられていればrowsをランダムに並び替え
+##指定されていなければ全部返す
+##一行読み込みlinecache
+##http://qiita.com/Kodaira_/items/eb5cdef4c4e299794be3
+def read_myjson(fname,num,randflag):
+    random.seed(1)
+    diclist = []
+    rows = list(range(1,1+sum(1 for line in open(fname))))
+    if randflag is True:
+        random.shuffle(rows)
+    if num is not None:
+        rows = rows[:num]
+    for row in rows:
+        diclist.append(json.loads(linecache.getline(fname, row)))
+        linecache.clearcache()
+    return diclist
+
+##myjsonファイルの書き込み
+def write_myjsonfile(fname,data):
+##    ディレクトリの作成
+    make_dir(os.path.dirname(fname))
+    f = open(fname,'a')
+    f.write(json.dumps(data)+'\n')
+    f.close()
+
 ##jsonファイルの更新
+##不要
 def update_jsonfile(fname,data):
+    print("avoid method update_jsonfile!!!!!!!!!!")
+    return
     temp = []
 ##    存在する場合読み込んで追記
     if os.path.exists(fname):

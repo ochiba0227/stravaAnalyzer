@@ -1,3 +1,8 @@
+#.myjsonの仕様
+一行に一つのjsonデータ
+読み込み：funcs.readmyjson(filename)
+書き込み：funcs.writemyjson(filename,data)
+
 #プログラムの勉強用に作成
 decode_jsondata.py:jsonデータのデコードのテスト用
 get_usernum.py:各セグメントごとのユーザ数を取得
