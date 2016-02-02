@@ -9,13 +9,41 @@ import re
 from datetime import datetime
 import numpy as np
 import inspect
+from sklearn.externals import joblib
 
+##名前を指定してモデルを保存
+def save_model(model,name):
+    save_dir = 'results\\models\\'+name
+    make_dir(save_dir)
+    joblib.dump(model, os.path.join(save_dir,name+'.pkl')) 
+
+##jsonファイルの更新
+def update_jsonfile(fname,data):
+    temp = []
+##    存在する場合読み込んで追記
+    if os.path.exists(fname):
+        f = open(fname)
+        temp = json.load(f)
+        f.close()
+##存在しない場合リスト型に変換してから書き込み
+    temp.append(data)
+    write_json(fname,temp)
+
+##jsonファイルの保存
+def write_json(fname,data):
+##    ディレクトリがなければ作成
+    make_dir(os.path.dirname(fname))
+    with open(fname, mode='w') as f:
+        json.dump(data, f)
 
 ##ファイル名,データ配列,保存したいキー値
 def write_csv(fname,data,keys):
+##    ディレクトリがなければ作成
+    make_dir(os.path.dirname(fname))
+    
     header = dict([(val,val)for val in keys])
      
-    with open(fname, mode='w') as f:
+    with open(fname, mode='a') as f:
         data.insert(0,header)
         writer = csv.DictWriter(f, keys, extrasaction='ignore', lineterminator="\n")
         writer.writerows(data)
@@ -128,10 +156,11 @@ def write_log(text):
 def start_program():
     winsound.PlaySound('se\\se_moa01.wav',winsound.SND_FILENAME)
     filename = inspect.currentframe().f_back.f_code.co_filename
-    time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-    line = 'start:'+filename+' on:'+time
+    time = datetime.now()
+    line = 'start:'+filename+' on:'+time.strftime("%Y/%m/%d %H:%M:%S")
     print(line)
     write_log(line)
+    return time
 
 ##プログラムの終了時SE
 def end_program():

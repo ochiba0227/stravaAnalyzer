@@ -11,9 +11,17 @@ from sklearn.metrics import precision_score, recall_score, classification_report
 from sklearn import cross_validation
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.grid_search import GridSearchCV
+from sklearn.preprocessing import scale
 import multiprocessing
 import functools
 import funcs
+
+##グリッドサーチの結果をファイルに出力
+def write_gridres(name,data):
+    csvfile = open(name+".csv","w")
+    writer = csv.writer(csvfile)
+    writer.writerows(data.grid_scores_)
+    csvfile.close()
 
 ##辞書からkmeansできるリストへ
 def dicttolist_withkeys(dict_data,keys):
@@ -42,14 +50,10 @@ def tune_nn_classifier(features,labels):
     print(classification_report(test_label, predicted_label,digits = 3))
     return clf
 
-##入力データと入力ラベルに基づいたニューラルネットワークの予測器のチューニング
-def tune_nn_regressor(features,labels):
+##入力データと入力ラベルに基づいてモデルに最適なパラメータを探索
+def tune_model(features,labels,model,parameters):
     train_data,test_data,train_label,test_label = cross_validation.train_test_split(
         features,labels,test_size=0.5,random_state=1)
-    parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,7))),
-                   'hidden_layer_sizes':list(range(50,100,10))}]
-##    parameters = [{'hidden_layer_sizes':list(range(50,100,10))}]
-    model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.0001)
     clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
     clf.fit(train_data,train_label)
     print(clf.best_estimator_)
@@ -91,12 +95,12 @@ def learn_nn(features,labels):
     print((preds.mean(), preds.std() * 2))
 
 ##    得たラベルから速度計算のためのNNの学習
-def regression_nn(features,labels):
+def regression_nn(features,labels,model):
     training_data,test_data,training_label,test_label = cross_validation.train_test_split(
         features,labels,test_size=0.5,random_state=1)
-    model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.0001,hidden_layer_sizes=90)
     model.fit(training_data,training_label)
     predicted_label = model.predict(test_data)
+    print(model)
     print(r2_score(test_label,predicted_label))
     difference = []
     for d in np.c_[test_label,predicted_label]:
@@ -107,13 +111,13 @@ def regression_nn(features,labels):
     print(sum(difference)/len(difference)*60)
 
 ##    得たラベルから速度計算のためのRandomForestの学習
-def regression_rf(features,labels):
+def regression_rf(features,labels,model):
     ##    トレーニングデータとテストデータを半分に割った場合
     training_data,test_data,training_label,test_label = cross_validation.train_test_split(
         features,labels,test_size=0.5,random_state=1)
-    model = RandomForestRegressor(n_estimators=50,max_features='log2', random_state=1)
     model.fit(training_data,training_label)
     predicted_label = model.predict(test_data)
+    print(model)
     print(r2_score(test_label,predicted_label))
 ##各木で出た数値の平均を取れないか？
     difference = []
@@ -166,7 +170,7 @@ def find_userid(datalist,uid):
 def get_average(tup):
     uid = tup[0]
     data = tup[1]
-    speed_array = np.array(data['data']).astype(np.float)[:,1:4]
+    speed_array = np.array(data['data']).astype(np.float)[:,1:5]
 ##    nan要素をマスキングで計算に現れずにする
     masked_array = np.ma.masked_array(speed_array,np.isnan(speed_array))
     speed = np.mean(masked_array,axis=0)
@@ -183,8 +187,6 @@ def make_onedata(dic,keys):
 ##        データが存在しない場合無視するためにNoneを代入
         if d == '-1':
             d = None
-        elif key.find("Speed") == 1:
-            d = float(d)
         data.append(d)
     return data,dic['userid'],dic['climbCategory']
 
@@ -235,6 +237,32 @@ def output_file_forkm(data_forkm,uids):
     writer.writerows(diclist)
     f.close()
 
+##クラスタごとに色分けしてプロット
+def plot_data_3D(data,classes):
+    fig = plt.figure()
+    ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=48, azim=134)
+    ax.scatter(data[:,0], data[:,1], data[:,2], c=classes.astype(np.float))
+    ax.w_xaxis.set_ticklabels([])
+    ax.w_yaxis.set_ticklabels([])
+    ax.w_zaxis.set_ticklabels([])
+    ax.set_xlabel('Negative Grade')
+    ax.set_ylabel('No Grade')
+    ax.set_zlabel('Positive Grade')
+    plt.show()
+
+##クラスタごとに色分けしてプロット
+def plot_data_2D(data,classes):
+    fig = plt.figure()
+    ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=48, azim=134)
+    ax.scatter(data[:,0], data[:,1], data[:,2], c=classes.astype(np.float))
+    ax.w_xaxis.set_ticklabels([])
+    ax.w_yaxis.set_ticklabels([])
+    ax.w_zaxis.set_ticklabels([])
+    ax.set_xlabel('Negative Grade')
+    ax.set_ylabel('No Grade')
+    ax.set_zlabel('Positive Grade')
+    plt.show()  
+
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
@@ -243,13 +271,16 @@ if __name__ == '__main__':
     p.daemon = True
     f = open('F:\\study\\analiser\\results\\user_data_all20160131_023720.csv', 'r')
     reader = csv.DictReader(f)
+    for data in reader:
+        print(data.keys())
+        break
     all_data = {}
 ##    keys通りの並びでデータが帰ってくる
-    keys = ['averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','distance','averageGrade']
+    keys = ['averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','startDistance','distance']
     try:
         for data,userid,climbCategory in p.imap_unordered(functools.partial(make_onedata,keys=keys),reader):
 ##            記録開始だけして動いていないデータを削除
-            if float(data[len(keys)-2]) < 5:
+            if float(data[len(keys)-1]) < 5:
                 continue
             if userid not in all_data.keys():
                 all_data[userid] = {'data':[],'climbCategory':{}}
@@ -269,30 +300,86 @@ if __name__ == '__main__':
         ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
         ##除去した後明示的にstrからfloatへ変換
         ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
-        kmeans_model = KMeans(n_clusters=9, random_state=1).fit(data_forlabel)
-        labels = kmeans_model.labels_
+##        後の処理をしやすくするためにnparrayに変換
+        clusters = 9
+        data_forlabel = np.array(data_forlabel)
+        kmeans_model = KMeans(n_clusters=clusters, random_state=1).fit(scale(data_forlabel))
+        labels = np.array(kmeans_model.labels_)
         print(kmeans_model.cluster_centers_)
-        learn_nn(data_forlabel,labels)
 
-##        各行にラベルを付与
-        data_forreg = []
-        for data in p.imap_unordered(functools.partial(add_labels,uids=uids,labels=labels),all_data.items()):
-            if data is None:
-                continue
-            data_forreg.extend(data)
-        data_forreg = np.array(data_forreg)
-        features = data_forreg[:,1:]
-        labels = data_forreg[:,0]
-##        チューニング用の関数
-##        tune_rf_regressor(features,labels)
-##        tune_nn_regressor(features,labels)
-        regression_rf(features,labels)
-        regression_nn(features,labels)
+##        クラス0のデータの平均と分散に基づいてデータの検索
+        print(np.mean(data_forlabel[labels==0],axis=0))
+        plot_data_3D(data_forlabel,labels)
+##        datas = p.map(lambda x:(np.mean(data_forlabel[labels==x],axis=0),
+##                                np.mean(data_forlabel[labels==x],axis=0)),range(clusters))
+##        ##        チューニング用の関数
+##        model = MLPClassifier(activation='logistic',algorithm='l-bfgs', random_state=1)
+##        parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,5))),
+##                   'hidden_layer_sizes':list(range(50,151))}]
+##        tuned_nnclassifier = tune_model(data_forlabel,labels,model,parameters)
 
-##        距離，平均勾配，ユーザタイプから平均速度が予測できるか
-        features = data_forreg[:,4:]
-        rfmodel = tune_rf_regressor(features,labels)
-        nnmodel = tune_nn_regressor(features,labels)
+##        learn_nn(data_forlabel,labels)
+##
+####        各行にラベルを付与
+##        data_forreg = []
+##        for data in p.imap_unordered(functools.partial(add_labels,uids=uids,labels=labels),all_data.items()):
+##            if data is None:
+##                continue
+##            data_forreg.extend(data)
+##        data_forreg = np.array(data_forreg)
+##        features = data_forreg[:,1:]
+##        labels = data_forreg[:,0]
+####        チューニング用の関数
+##        model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1)
+##        parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,5))),
+##                   'hidden_layer_sizes':list(range(50,150,10))}]
+##        tuned_nnregressor = tune_model(features,labels,model,parameters)
+##
+##        model = RandomForestRegressor(max_features='log2', random_state=1)
+####n_estimatorsは<50で探索すべき
+##        parameters = [{'n_estimators':list(range(10,50,5))}]
+##        tuned_rfregressor = tune_model(features,labels,model,parameters)
+##
+##        model = RandomForestRegressor(n_estimators=50,max_features='log2', random_state=1)
+##        regression_rf(features,labels,model)
+##        model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.0001,hidden_layer_sizes=90)
+##        regression_nn(features,labels,model)
+##
+####        距離，平均勾配，ユーザタイプから平均速度が予測できるか
+##        features = data_forreg[:,4:]
+####        チューニング用の関数
+##        model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1)
+##        parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,5))),
+##                   'hidden_layer_sizes':list(range(50,150,10))}]
+##        tuned_nnregressor2 = tune_model(features,labels,model,parameters)
+##
+##        model = RandomForestRegressor(max_features='log2', random_state=1)
+####n_estimatorsは<50で探索すべき
+##        parameters = [{'n_estimators':list(range(10,50,5))}]
+##        tuned_rfregressor2 = tune_model(features,labels,model,parameters)
+##        
+##        model = RandomForestRegressor(n_estimators=40,max_features='log2', random_state=1)
+##        regression_rf(features,labels,model)
+##        model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.01,hidden_layer_sizes=90)
+##        regression_nn(features,labels,model)
+##        
+####        勾配に対する平均速度から平均速度が予測できるか
+##        features = data_forreg[:,1:4]
+##        ##        チューニング用の関数
+##        model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1)
+##        parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,5))),
+##                   'hidden_layer_sizes':list(range(50,150,10))}]
+##        tuned_nnregressor3 = tune_model(features,labels,model,parameters)
+##
+##        model = RandomForestRegressor(max_features='log2', random_state=1)
+####n_estimatorsは<50で探索すべき
+##        parameters = [{'n_estimators':list(range(10,50,5))}]
+##        tuned_rfregressor3 = tune_model(features,labels,model,parameters)
+##
+##        model = RandomForestRegressor(n_estimators=40,max_features='log2', random_state=1)
+##        regression_rf(features,labels,model)
+##        model = MLPRegressor(activation='logistic',algorithm='adam', random_state=1,alpha=0.01,hidden_layer_sizes=90)
+##        regression_nn(features,labels,model)
 ##        
 ##        learn_ra(features)
 ##    except Exception as e:
