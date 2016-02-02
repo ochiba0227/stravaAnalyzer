@@ -5,10 +5,11 @@ from matplotlib import pylab
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
 from mpl_toolkits.mplot3d import Axes3D
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans,MeanShift,estimate_bandwidth
 from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
 from sklearn.metrics import precision_score, recall_score, classification_report, confusion_matrix,r2_score,euclidean_distances
+from sklearn.metrics.pairwise import pairwise_distances
 from sklearn import cross_validation
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.grid_search import GridSearchCV
@@ -26,6 +27,33 @@ def find_userid(datalist,uid):
         if uid == data[0]:
             return True
     return False
+
+##入力データと入力ラベルに基づいてMSに最適なパラメータを探索
+def tune_MS(data):
+    mss = []
+    bandwidth_range = []
+    quantile_range = np.array(range(1, 20))/20
+    for quantile in quantile_range:
+        bandwidth_range.append(estimate_bandwidth(data, quantile=quantile, random_state=1))
+    for bandwidth in bandwidth_range:
+        ms = MeanShift(bandwidth=bandwidth, n_jobs=-2)
+        ms.fit(data)
+        mss.append((bandwidth,ms))
+
+    metrics=['cosine','euclidean','l1','l2','manhattan']
+    distance_max = -np.inf
+    retms = mss[0]
+    for metric in metrics:
+        print(metric)
+        print("-------------")
+        for ms in mss:
+            print(np.mean(pairwise_distances(ms.labels_,n_jobs=-2),axis=0))
+            distance = np.mean(pairwise_distances(ms.labels_,n_jobs=-2),axis=0)
+            if distance > distance_max:
+                distance_max = distance
+                retms = ms
+        print("-------------")
+    return retms
 
 ##入力データと入力ラベルに基づいてGMMに最適なパラメータを探索
 def tune_GMM(data):
@@ -48,7 +76,7 @@ def tune_GMM(data):
 def get_average(tup):
     uid = tup[0]
     data = tup[1]
-    speed_array = np.array(data['data']).astype(np.float)[:,1:5]
+    speed_array = np.array(data['data']).astype(np.float)
 ##    nan要素をマスキングで計算に現れずにする
     masked_array = np.ma.masked_array(speed_array,np.isnan(speed_array))
     speed = np.mean(masked_array,axis=0)
@@ -121,66 +149,93 @@ def plot_data_2D(data,classes,components_label):
                 ax.scatter(data[:,x], data[:,y], c=classes.astype(np.float))
     plt.show()  
 
-##--------------プログラム開始------------------
-##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
-if __name__ == '__main__':
-    funcs.start_program()
-    p = multiprocessing.Pool()
-    p.daemon = True
-    f = open('F:\\study\\analiser\\results\\user_data_all20160131_023720.csv', 'r')
-    reader = csv.DictReader(f)
-    all_data = {}
-##    keys通りの並びでデータが帰ってくる
-    keys = ['averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','startDistance','distance']
+##ユーザデータをファイルから作成
+def makeuserdata_from_file(path):
     try:
-        for data,userid,climbCategory in p.imap_unordered(functools.partial(make_onedata,keys=keys),reader):
-##            記録開始だけして動いていないデータを削除
+        f = open(path, 'r')
+        reader = csv.DictReader(f)
+        all_data = {}
+    ##    keys通りの並びでデータが帰ってくる
+        keys = ['averageSpeed','averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade','startDistance','distance']
+        for row in reader:
+            data,userid,climbCategory = make_onedata(row,keys)
+    ##            記録開始だけして動いていないデータを削除
             if float(data[len(keys)-1]) < 5:
                 continue
             if userid not in all_data.keys():
                 all_data[userid] = {'data':[],'climbCategory':{}}
             all_data[userid]['data'].append(data)
             update_climbCategory(all_data[userid]['climbCategory'],climbCategory)
-##        各列ごとのデータの平均をとる
+
+    ##        各列ごとのデータの平均をとる
         uids = []
         data_forlabel = []
-        for uid,data,climbCategory in p.imap_unordered(get_average,all_data.items()):
-##            全部nanの行がある場合を排除
+        for items in all_data.items():
+            uid,data,climbCategory = get_average(items)
+    ##            全部nanの行がある場合を排除
             if True in data.mask:
                 continue
-##            全カテゴリの走行データがある場合
+    ##            全カテゴリの走行データがある場合
             if climbCategory == 6:
                 uids.append(uid)
                 data_forlabel.append(data)
         ##featuresからuseridとaveragespeedとlikecatを除いた値をkmeansに
         ##除去した後明示的にstrからfloatへ変換
         ##arrayのスライスhttp://d.hatena.ne.jp/y_n_c/20091117/1258423212
-##        後の処理をしやすくするためにnparrayに変換
+    ##        後の処理をしやすくするためにnparrayに変換
         data_forlabel = np.array(data_forlabel)
+        file = funcs.get_fileobj('middata.csv','w',None)
+        writer = csv.writer(file, lineterminator='\n')
+        writer.writerow(np.r_[['uid'],keys])
+        writer.writerows(np.c_[uids,data_forlabel])
+        return(data_forlabel)
+    finally:
+        f.close()
+    return None
 
-        cluster_num = 9
-        components_label = ['averageSpeedNeggrade','averageSpeedNograde','averageSpeedPosgrade']
-        data = scale(data_forlabel[:,:-1])
 
+##--------------プログラム開始------------------
+##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
+if __name__ == '__main__':
+    funcs.start_program()
+    file = funcs.get_fileobj('middata.csv','r',None)
+    if file is None:
+        print("DATA FROM FILE!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        makeuserdata_from_file('F:\\study\\analiser\\results\\user_data_all20160131_023720.csv')
+    try:
+        reader = csv.reader(file)
+        keys = next(reader)
+        data = []
+        for row in reader:
+            data.append(row)
+        data = np.array(data).astype(np.float)
+    finally:
+        file.close()
+    uids = data[:,0]
+    data = data[:,2:5]
+    scaled_data = data
 ##kmeansでクラスタリング
-        kmeans_model = KMeans(n_clusters=cluster_num, random_state=1).fit(data)
-        km_labels = np.array(kmeans_model.labels_)
+    kmeans_model = KMeans(n_clusters=9, random_state=1)
+    kmeans_model.fit(scale(scaled_data))
+    km_labels = np.array(kmeans_model.labels_)
 ##        plot_data_2D(data,labels,components_label)
 
 ##GMMでクラスタリング
 ##        GMMのチューニング
-        gmm = tune_GMM(data)
-        gm_labels = gmm.predict(data)
-        outfile = open('results\\labels.csv', 'w')
-        writer = csv.writer(outfile, lineterminator='\n')
-        writer.writerow(['uid','9-means','GMM'])
-        writer.writerows(np.c_[uids,km_labels,gm_labels])
-        outfile.close()
+    gmm = tune_GMM(scaled_data)
+    gm_labels = gmm.predict(scaled_data)
+
+    ms_model = tune_MS(scaled_data)
+    ms_labels = ms_model.labels_
+    
+    try:
+        file = funcs.get_fileobj('labels.csv','w',None)
+        writer = csv.writer(file, lineterminator='\n')
+        writer.writerow(['uid','9-means','GMM','MeanShift'])
+        writer.writerows(np.c_[uids,km_labels,gm_labels,ms_labels])
+    finally:
+        file.close()
 ##        kmeansの重心のプロット
 ##        centers = kmeans_model.cluster_centers_
 ##        plot_data_2D(centers,np.array(range(cluster_num)),components_label)
-
-    finally:
-        p.close()
-        f.close()
     funcs.end_program()
