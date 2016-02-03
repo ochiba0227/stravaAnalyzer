@@ -27,6 +27,7 @@ import funcs
 import json
 from datetime import datetime
 from sklearn.cross_validation import KFold
+from sklearn import svm
 
 ####グリッドサーチの結果をファイルに出力
 ##def write_gridres(name,data):
@@ -195,6 +196,20 @@ def search_haslabel(files,target_label,label_str):
 ##            update_userdata(data_users[file],d)
 ##    return data_users
 
+#データ数のチェック
+def check_datanum(data_users,need_num):
+##    全カテゴリに対してデータ数のチェックひとつでも少なければダメ
+    for catnamekey in data_users.keys():
+        data = data_users[catnamekey]
+        counter = 0
+        for run_data in data:
+##                    データ数を数える
+            counter+=len(run_data['VELOCITY'])
+##            データ数がneed_numに達しているか確認
+        if(counter<need_num):
+            return False
+    return True
+
 ##各ユーザのデータを取得
 def get_data_eachuser(data_users,keys,need_num):
     rundata_dict = {}
@@ -218,7 +233,6 @@ def get_data_eachuser(data_users,keys,need_num):
             if(rundata_dict[unamekey]['datanum'][catnamekey]<need_num):
                 del rundata_dict[unamekey]
                 break
-            
     return rundata_dict
 
 ##各ユーザのデータをそろえる
@@ -282,15 +296,14 @@ def update_userdata(dic,data):
 
 ##dicを更新
 ##各クラスタに所属するデータを追加
-def check_userdata(data,min_datanum):        
+def check_userdata(data):        
     keys = ['userid','km_label','gm_label','GRADE','ALTITUDE','DISTANCE','VELOCITY']
     temp_dict = {}
     for key in keys:
+##            キーが存在しない場合を省く
+        if key not in data:
+            return None
         temp_dict[key] = data[key]
-        if isinstance(data[key],list):
-##            所望のデータ数がない走行結果を省く
-            if len(data[key])<min_datanum:
-                return None
     return temp_dict
 
 ##人数を指定してデータの取得
@@ -317,15 +330,19 @@ def preparation_data(label_str,target_label,person_num,min_datanum,make_newfile)
                     continue
 ##                ラベルがあっていれば，データの保存作業に入る
             data_users[file] = {}
-            data = funcs.read_myjson(os.path.join(path_labeled,file),None,False)
+##            ランダムで最大100回分の走行データを得る
+            data = funcs.read_myjson(os.path.join(path_labeled,file),100,True)
             for d in data:
     ##                データ点数のチェック
-                ret_dict = check_userdata(d,min_datanum)
+                ret_dict = check_userdata(d)
 ##                書き込めるデータが帰ってきたら
                 if ret_dict is not None:
                     update_userdata(data_users[file],d)
 ##          全クライムカテゴリのデータがなければ
             if len(data_users[file].keys())<6:
+                del data_users[file]
+##            データ数が不足していたら
+            elif check_datanum(data_users[file],min_datanum) is False:
                 del data_users[file]
             if len(data_users)>=person_num:
                 break
@@ -391,19 +408,19 @@ if __name__ == '__main__':
     km_range = np.array(range(9)).astype(np.str)
     for label in km_range:
         label_str = 'km_label'
-        person_num = 1
-        ##最低データ点数を指定
-        min_datanum = 500
-        data_users = preparation_data(label_str,label,person_num,min_datanum,True)
+        person_num = 5
+        ##データ点数を指定
+        min_datanum = 1000
+        data_users = preparation_data(label_str,label,person_num,min_datanum,False)
 
         ##取得対象のデータ
         keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
         ##最低データ点数を指定
-        need_num = 500
-        actdata_dict = get_data_eachuser(data_users,keys,need_num)
-        ##欲しいデータ点数を指定
-        need_num = 250
-        align_data_eachuser(actdata_dict,keys,need_num)
+        keyss = data_users.keys()
+        print(data_users[list(keyss)[0]].keys())
+        actdata_dict = get_data_eachuser(data_users,keys,0)
+        align_data_eachuser(actdata_dict,keys,min_datanum)
+        print(actdata_dict.keys())
         print(label+':'+str(len(actdata_dict.keys())))
         model = RandomForestRegressor(max_features='log2',random_state=1)
         regresson_category(actdata_dict,keys,model)
