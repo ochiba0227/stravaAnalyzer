@@ -12,7 +12,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import KMeans, k_means
 from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
 from sklearn.neural_network import MLPClassifier, MLPRegressor
-from sklearn.metrics import precision_score, recall_score, classification_report, confusion_matrix,r2_score
+from sklearn.metrics import precision_score, recall_score, classification_report
+from sklearn.metrics import confusion_matrix,r2_score,explained_variance_score,mean_absolute_error
 from sklearn import cross_validation
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.grid_search import GridSearchCV
@@ -25,6 +26,7 @@ import functools
 import funcs
 import json
 from datetime import datetime
+from sklearn.cross_validation import KFold
 
 ####グリッドサーチの結果をファイルに出力
 ##def write_gridres(name,data):
@@ -182,30 +184,16 @@ def search_haslabel(files,target_label,label_str):
                 ret_list.append(False)
     return ret_list
 
-##dicを更新
-##各クラスタに所属するデータを追加
-def update_userdata(dic,data):
-    climbCategory = data['climbCategory']
-    if climbCategory not in dic.keys():
-        dic[climbCategory] = []
-        
-    keys = ['userid','km_label','gm_label','GRADE','ALTITUDE','DISTANCE','VELOCITY']
-    temp_dict = {}
-    for key in keys:
-        temp_dict[key] = data[key]
-    dic[climbCategory].append(temp_dict)
-    return temp_dict
-
-##filesに指定されたファイルを読み込みユーザデータを取得
-def get_userdata(data_users,files,readrows,randflag):
-    for file in files:
-        if file in data_users.keys():
-            continue
-        data_users[file] = {}
-        data = funcs.read_myjson(os.path.join(path_labeled,file),readrows,randflag)
-        for d in data:
-            update_userdata(data_users[file],d)
-    return data_users
+####filesに指定されたファイルを読み込みユーザデータを取得
+##def get_userdata(data_users,files,readrows,randflag,path_labeled,):
+##    for file in files:
+##        if file in data_users.keys():
+##            continue
+##        data_users[file] = {}
+##        data = funcs.read_myjson(os.path.join(path_labeled,file),readrows,randflag)
+##        for d in data:
+##            update_userdata(data_users[file],d)
+##    return data_users
 
 ##各ユーザのデータを取得
 def get_data_eachuser(data_users,keys,need_num):
@@ -247,7 +235,6 @@ def align_data_eachuser(actdata_dict,keys,need_num):
                     if data < need_num:
                         need_num = data
                 break
-
 ##データをneed_numにそろえる
     for unamekey in actdata_dict.keys():
         data = actdata_dict[unamekey]
@@ -269,33 +256,83 @@ def align_data_eachuser(actdata_dict,keys,need_num):
                     for pickup_index in pickup_indexes:
                         temp_list.append(data[pickup_index])
                     actdata_dict[unamekey][catnamekey][index] = temp_list
+    return actdata_dict
+
+##分析用データを作成
+##nparray形式でデータを返す
+def make_dataarray(actdata_dict,keys,catnamekey):
+    temp_array = []
+    for unamekey in actdata_dict.keys():
+        data = actdata_dict[unamekey][catnamekey]
+        if catnamekey is not 'datanum':
+            for key in keys:
+                index = keys.index(key)
+                if(len(temp_array)<=index):
+                    temp_array.append([])
+                temp_array[index].extend(actdata_dict[unamekey][catnamekey][index])
+    return np.array(temp_array)
+
+##dicを更新
+##各クラスタに所属するデータを追加
+def update_userdata(dic,data):
+    climbCategory = data['climbCategory']
+    if climbCategory not in dic.keys():
+        dic[climbCategory] = []               
+    dic[climbCategory].append(data)
+
+##dicを更新
+##各クラスタに所属するデータを追加
+def check_userdata(data,min_datanum):        
+    keys = ['userid','km_label','gm_label','GRADE','ALTITUDE','DISTANCE','VELOCITY']
+    temp_dict = {}
+    for key in keys:
+        temp_dict[key] = data[key]
+        if isinstance(data[key],list):
+##            所望のデータ数がない走行結果を省く
+            if len(data[key])<min_datanum:
+                return None
+    return temp_dict
 
 ##人数を指定してデータの取得
 ##make_newfile新規ユーザファイル作成フラグ
-def preparation_data(label_str,target_label,person_num,make_newfile):
+def preparation_data(label_str,target_label,person_num,min_datanum,make_newfile):
     ##    学習で使用するデータの準備
-    middata_name = label_str+'_'+target_label+'_'+'userdata.json'
+    middata_name = label_str+'_class'+target_label+'_personnum'+str(person_num)+'_userdata.json'
     filepath = funcs.get_filepath(middata_name,None)
     if make_newfile or os.path.exists(filepath) is False:
         print("Make Data!!!!")
-##        files = ['614307.myjson']
-##    ##    data_usersの初期化
-##        data_users = get_userdata({},files,None,False)
-
     ##    同一ラベルを持つユーザの探索
+        path_labeled = 'results\\data_for_regression\\20160203_011146\\labeled'
         files = os.listdir(path_labeled)
         random.shuffle(files)
-        input_files = []
+        data_users = {}
         for file in files:
+            if file in data_users.keys():
+                continue
+##            ひとつデータを読み込みラベルを確認
             data = funcs.read_myjson(os.path.join(path_labeled,file),1,False)
             for d in data:
-                if target_label == d[label_str]:
-                    input_files.append(file)
-            if(len(input_files)>=person_num):
+##                ラベルが異なれば，次のファイルを読み込む
+                if target_label != d[label_str]:
+                    continue
+##                ラベルがあっていれば，データの保存作業に入る
+            data_users[file] = {}
+            data = funcs.read_myjson(os.path.join(path_labeled,file),None,False)
+            for d in data:
+    ##                データ点数のチェック
+                ret_dict = check_userdata(d,min_datanum)
+##                書き込めるデータが帰ってきたら
+                if ret_dict is not None:
+                    update_userdata(data_users[file],d)
+##          全クライムカテゴリのデータがなければ
+            if len(data_users[file].keys())<6:
+                del data_users[file]
+            if len(data_users)>=person_num:
                 break
 
-    ##    data_usersの更新
-        get_userdata(data_users,input_files,None,False)
+        if data_users is False:
+            print("users is NULL!!!!!!!!!!!!!!!!")
+            exit(-1)
         
 ##        ファイルへ書き込み
         try:
@@ -312,147 +349,63 @@ def preparation_data(label_str,target_label,person_num,make_newfile):
             f.close()
     return data_users
 
+
+def regresson_category(actdata_dict,keys,model):
+##    カテゴリ毎にテスト
+    climb_cat = ['FLAT', 'CATEGORY1','CATEGORY2',  'CATEGORY3', 'CATEGORY4' ,'HORS_CATEGORIE']
+    for category in climb_cat:
+        print('-----------'+category+'-------------')
+        darray = make_dataarray(actdata_dict,keys,category)
+    ##        k-foldはXを説明変数，yを目的変数とする
+        X = scale(darray[:3].transpose())
+        y = scale(darray[3].transpose())
+##        kf = KFold(len(y),n_folds=10)        
+##        result = [[],[],[]]
+##        for train_index, test_index in kf:
+##            X_train, X_test = X[train_index], X[test_index]
+##            y_train, y_test = y[train_index], y[test_index]
+##            model.fit(X_train,y_train)
+##            pred = model.predict(X_test)
+##            result[0].append(model.score(y_test,pred))
+##            result[1].append(explained_variance_score(y_test,pred))
+##            result[2].append(mean_absolute_error(y_test,pred))
+        train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+        X,y,test_size=0.5,random_state=1)
+        model.fit(train_data,train_label)
+        pred = model.predict(test_data)
+        print(mean_absolute_error(test_label,pred))
+##        print("r2:"+str(np.mean(result[0])))
+##        print("evs:"+str(np.mean(result[1])))
+##        print("mae:"+str(np.mean(result[2])))
+        print('-----------------------------------')
+
 ##[climbCategory][label][data]
 ##--------------プログラム開始------------------
 ##マルチスレッド処理の為にこれが必要 http://matsulib.hatenablog.jp/entry/2014/06/19/001050
 if __name__ == '__main__':
-    starttime = datetime.now()
-    funcs.start_program()
+    starttime = funcs.start_program()
     np.random.seed(1)
     random.seed(1)
     
-    path_labeled = 'results\\data_for_regression\\20160203_011146\\labeled'
-    files = os.listdir(path_labeled)
-    random.shuffle(files)
-
-##    climb_cat = ['FLAT', 'CATEGORY1','CATEGORY2',  'CATEGORY3', 'CATEGORY4' ,'HORS_CATEGORIE']
-    km_range = np.array(range(9)).astype(np.str)
-
 ##    クラスタリング手法とラベルに基づいて最大person_num人分のデータを取得
-    label_str = 'km_label'
-    label = '0'
-    person_num = 10
-    data_users = preparation_data(label_str,label,person_num,False)
+    km_range = np.array(range(9)).astype(np.str)
+    for label in km_range:
+        label_str = 'km_label'
+        person_num = 1
+        ##最低データ点数を指定
+        min_datanum = 500
+        data_users = preparation_data(label_str,label,person_num,min_datanum,True)
 
-    keys = ['GRADE','ALTITUDE','DISTANCE','VELOCITY']
-    ##最低データ点数を指定
-    need_num = 1000
-    actdata_dict = get_data_eachuser(data_users,keys,need_num)
-    ##欲しいデータ点数を指定
-    need_num = 1000
-    align_data_eachuser(actdata_dict,keys,need_num)
-    print(actdata_dict.keys())
-##    カテゴリFLATにてテスト
-    try:
-##        データ数をそろえる
-        rundata_dict = {}
-        for unamekey in data_users.keys():
-            rundata_dict[unamekey] = {}
-            data = data_users[unamekey]
-            for catnamekey in data.keys():
-                temp_array = [[],[],[],[]]
-                data = data_users[unamekey][catnamekey]
-                for run_data in data:
-                    for key in keys:
-                        index = keys.index(key)
-                        temp_array[index].extend(run_data[key])
-                rundata_dict[unamekey][catnamekey]=temp_array
-                    
+        ##取得対象のデータ
+        keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
+        ##最低データ点数を指定
+        need_num = 500
+        actdata_dict = get_data_eachuser(data_users,keys,need_num)
+        ##欲しいデータ点数を指定
+        need_num = 250
+        align_data_eachuser(actdata_dict,keys,need_num)
+        print(label+':'+str(len(actdata_dict.keys())))
+        model = RandomForestRegressor(max_features='log2',random_state=1)
+        regresson_category(actdata_dict,keys,model)
 
-##        3データでやった場合
-        darray = np.array(darray)
-        features = scale(darray[:3].transpose())
-        labels = scale(darray[3].transpose())
-        training_data,test_data,training_label,test_label = cross_validation.train_test_split(
-            features,labels,test_size=0.5,random_state=1)
-
-        
-        model = MLPRegressor(activation='logistic', random_state=1)
-        model.fit(training_data,training_label)
-        pred = model.predict(test_data)
-        r2_score(test_label,pred)
-    finally:
-        pass
     funcs.end_program()
-##    gm_range = np.array(range(5)).astype(np.str)
-##    gm_labeled = {}
-##    gm_ok = False
-
-####　各ユーザから全データの取得
-##    for file in list(files):
-##        data = funcs.read_myjson(os.path.join(path_labeled,file),None,False)
-##        for d in data:
-##            add_labeleddata_climbcategory(km_labeled,d,'km_label')
-####        全タイプの走行データがあるか確認
-##        if len(km_labeled.keys())==8:
-##            counter = 0
-####            各タイプの各クライムカテゴリについてデータの存在を確認
-##            for key in km_labeled.keys():
-##                if len(km_labeled[key].keys()) == 6:
-##                    counter +=1
-####            全部にデータが存在すれば
-##            if counter == 8:
-##                break
-##    try:
-##        file = funcs.get_fileobj('data_each.json','w',None)
-##        writer = json.dump(km_labeled,file)
-##    finally:
-##        file.close()
-
-##    try:
-##        file = funcs.get_fileobj('datatest.json','r',None)
-##        km_labeled = json.load(file)
-##    finally:
-##        file.close()
-
-##    for label in km_range:
-##        for categorie in km_labeled[label].keys():
-##            print(str(label)+':'+str(categorie))
-            
-    
-##    for file in files:
-####        [{},{}]の形式でデータを取得
-##        data = funcs.read_myjson(os.path.join(path_labeled,file),1,True)
-##        if km_ok is False:
-##            for d in data:
-##                add_labeleddata(km_labeled,d,target_datanum,'km_label')
-##            if hasdata_eachlabel(km_labeled,km_range,target_datanum) is True:
-##                km_ok = True
-##                
-##        if gm_ok is False:
-##            for d in data:
-##                add_labeleddata(gm_labeled,d,target_datanum,'gm_label')
-##            if hasdata_eachlabel(gm_labeled,gm_range,target_datanum) is True:
-##                gm_ok = True
-##
-##        if km_ok is True and gm_ok is True:
-##            break
-
-
-##    f = open('gm_labeled.json')
-##    gm_labeled = json.load(f)
-##    f.close()
-##        
-##    km_nn_models = []
-##    km_rf_models = []
-##    for index in km_range:
-##        darray = np.array(km_labeled[km_range[index]])
-##        data = scale(darray[:3].transpose())
-##        labels = scale(darray[3].transpose())
-##        model = tune_nn_classifier(data,labels)
-##        km_nn_models.append(model)
-##        model = tune_nn_classifier(data,labels)
-##        km_rf_models.append(model)
-##        
-##    gm_nn_models = []
-##    gm_rf_models = []
-##    for index in gm_range:
-##        darray = np.array(gm_labeled[gm_range[index]])
-##        data = scale(darray[:3].transpose())
-##        labels = scale(darray[3].transpose())
-##        model = tune_nn_classifier(data,labels)
-##        gm_nn_models.append(model)
-##        model = tune_nn_classifier(data,labels)
-##        gm_rf_models.append(model)
-
-    

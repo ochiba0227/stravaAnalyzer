@@ -66,6 +66,8 @@ def get_data(path):
                 temp[datastr] = data['data']
             if datastr == 'CADENCE':
                 temp[datastr] = data['data']
+            if datastr == 'TIME':
+                temp[datastr] = data['data']
         return temp
     return None
 
@@ -94,7 +96,7 @@ def get_avespeed(path):
 if __name__ == '__main__':
     starttime = funcs.start_program()
     np.random.seed(0)
-    df = pd.read_csv('results\\cluster_analysis\\labels.csv')
+    df = pd.read_csv('results\\cluster_analysis_foruser\\labels.csv')
     colnames = df.columns
     labeled_users = list(df[colnames[0]])
     km_label = list(df[colnames[1]])
