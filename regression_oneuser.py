@@ -270,28 +270,32 @@ def align_data_eachuser(actdata_dict,keys,need_num):
                         temp_list.append(data[pickup_index])
                     actdata_dict[unamekey][catnamekey][index] = temp_list
 
-##データの準備
-def preparation_data(label_str):
+##人数を指定してデータの取得
+##make_newfile新規ユーザファイル作成フラグ
+def preparation_data(label_str,target_label,person_num,make_newfile):
     ##    学習で使用するデータの準備
-    middata_name = 'middata.json'
+    middata_name = label_str+'_'+target_label+'_'+'userdata.json'
     filepath = funcs.get_filepath(middata_name,None)
-    data_from_file_flag = False
-    if data_from_file_flag or os.path.exists(filepath) is False:
+    if make_newfile or os.path.exists(filepath) is False:
         print("Make Data!!!!")
-        files = ['614307.myjson']
-    ##    data_usersの初期化
-        data_users = get_userdata({},files,None,False)
+##        files = ['614307.myjson']
+##    ##    data_usersの初期化
+##        data_users = get_userdata({},files,None,False)
 
     ##    同一ラベルを持つユーザの探索
-        target_label = data_users['614307.myjson']['FLAT'][0][label_str]
         files = os.listdir(path_labeled)
         random.shuffle(files)
-        files=np.array(files[:10])
-        flags = np.array(search_haslabel(files,target_label,label_str))
-        files = files[flags==True]
+        input_files = []
+        for file in files:
+            data = funcs.read_myjson(os.path.join(path_labeled,file),1,False)
+            for d in data:
+                if target_label == d[label_str]:
+                    input_files.append(file)
+            if(len(input_files)>=person_num):
+                break
 
     ##    data_usersの更新
-        get_userdata(data_users,files,None,False)
+        get_userdata(data_users,input_files,None,False)
         
 ##        ファイルへ書き込み
         try:
@@ -324,9 +328,11 @@ if __name__ == '__main__':
 ##    climb_cat = ['FLAT', 'CATEGORY1','CATEGORY2',  'CATEGORY3', 'CATEGORY4' ,'HORS_CATEGORIE']
     km_range = np.array(range(9)).astype(np.str)
 
-##    ラベルに基づいてデータを取得
+##    クラスタリング手法とラベルに基づいて最大person_num人分のデータを取得
     label_str = 'km_label'
-    data_users = preparation_data(label_str)
+    label = '0'
+    person_num = 10
+    data_users = preparation_data(label_str,label,person_num,False)
 
     keys = ['GRADE','ALTITUDE','DISTANCE','VELOCITY']
     ##最低データ点数を指定
@@ -339,10 +345,6 @@ if __name__ == '__main__':
 ##    カテゴリFLATにてテスト
     try:
 ##        データ数をそろえる
-        
-        uid =''
-        
-
         rundata_dict = {}
         for unamekey in data_users.keys():
             rundata_dict[unamekey] = {}
