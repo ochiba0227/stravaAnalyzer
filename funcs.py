@@ -39,6 +39,7 @@ def read_myjson(fname,num,randflag):
     return diclist
 
 ##myjsonファイルの書き込み
+##書き込みたい一行分のデータをdataとして渡す
 def write_myjsonfile(fname,data):
 ##    ディレクトリの作成
     make_dir(os.path.dirname(fname))
@@ -220,6 +221,7 @@ def get_fileobj(fname,param,joinpath):
         opath = os.path.join(opath,joinpath)
     if param in ['w','a']:
         make_dir(opath)
+        backup_file(os.path.join(opath,fname))
     try:
         return open(os.path.join(opath,fname),param)
     except Exception as e:
@@ -242,3 +244,16 @@ def get_maxkey_dict(d):
     indexes = np.argsort(list(d.values()))
     index = indexes[len(indexes)-1]
     return list(d.keys())[index]
+
+##上書きされるのを回避
+import shutil
+def backup_file(filepath):
+    if os.path.exists(filepath) is False:
+        return True
+    root,ext = os.path.splitext(os.path.basename(filepath))
+    dir_name = os.path.dirname(filepath)
+    for num in range(10000):
+        path = os.path.join(dir_name,root+'_'+str(num)+ext)
+        if os.path.exists(path) is False:
+            shutil.copyfile(filepath,path)
+            return True

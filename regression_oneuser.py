@@ -170,36 +170,96 @@ def add_labeleddata(dic,data,target_datanum,labelname):
             index = keys.index(key)
             dic[label][index].extend(data[key])
 
+##filesで与えられたファイルが同じラベルを持つか返すクラス
+def search_haslabel(files,target_label,label_str):
+    ret_list = []
+    for file in files:
+        data = funcs.read_myjson(os.path.join(path_labeled,file),1,False)
+        for d in data:
+            if target_label == d[label_str]:
+                ret_list.append(True)
+            else:
+                ret_list.append(False)
+    return ret_list
+
 ##dicを更新
 ##各クラスタに所属するデータを追加
-##target条件を満たしていたら追加しない
-def add_labeleddata_climbcategory(dic,data,labelname):
-    label = data[labelname]
+def update_userdata(dic,data):
     climbCategory = data['climbCategory']
     if climbCategory not in dic.keys():
-        dic[climbCategory] = {}
-    if label not in dic[climbCategory].keys():
-        dic[climbCategory][label] = []
+        dic[climbCategory] = []
         
-    keys = ['userid','GRADE','ALTITUDE','DISTANCE','VELOCITY']
+    keys = ['userid','km_label','gm_label','GRADE','ALTITUDE','DISTANCE','VELOCITY']
     temp_dict = {}
     for key in keys:
         temp_dict[key] = data[key]
-    dic[climbCategory][label].append(temp_dict)
+    dic[climbCategory].append(temp_dict)
+    return temp_dict
 
-##各クラスタに所属するデータが要求数あるか
-def hasdata_eachlabel(dic,range_,target_datanum):
-    datakeys = dic.keys()
-    for label in range_:
+##filesに指定されたファイルを読み込みユーザデータを取得
+def get_userdata(data_users,files,readrows,randflag):
+    for file in files:
+        if file in data_users.keys():
+            continue
+        data_users[file] = {}
+        data = funcs.read_myjson(os.path.join(path_labeled,file),readrows,randflag)
+        for d in data:
+            update_userdata(data_users[file],d)
+    return data_users
+
+##各ユーザのデータ数を取得
+def get_datanum_eachuser(data_users):
+    datanum_dict = {}
+    for unamekey in data_users.keys():
+        datanum_dict[unamekey] = {}
+        data = data_users[unamekey]
+        for key in data.keys():
+            num = 0
+##                  クライムカテゴリごとのデータ数の総計を取得
+##            data[key]にはあるクライムカテゴリのデータがdictのlistとして格納されている
+            for d in data[key]:
+##                どれをとっても同じなのでvelocityのデータ数を取ってる
+                num += len(d['VELOCITY'])
+            datanum_dict[unamekey][key] = num
+    return datanum_dict
+
+##データの準備
+def preparation_data(label_str):
+    ##    学習で使用するデータの準備
+    middata_name = 'middata.json'
+    filepath = funcs.get_filepath(middata_name,None)
+    data_from_file_flag = False
+    if data_from_file_flag or os.path.exists(filepath) is False:
+        print("Make Data!!!!")
+        files = ['614307.myjson']
+    ##    data_usersの初期化
+        data_users = get_userdata({},files,None,False)
+
+    ##    同一ラベルを持つユーザの探索
+        target_label = data_users['614307.myjson']['FLAT'][0][label_str]
+        files = os.listdir(path_labeled)
+        random.shuffle(files)
+        files=np.array(files[:10])
+        flags = np.array(search_haslabel(files,target_label,label_str))
+        files = files[flags==True]
+
+    ##    data_usersの更新
+        get_userdata(data_users,files,None,False)
+        
+##        ファイルへ書き込み
         try:
-            if len(dic[label][0])<target_datanum:
-                return False
-        except Exception as e:
-            return False      
-    return True
-
-##各クラスタの各クライムカテゴリごとに所属するデータが要求数あるか
-##def hasdata_eachlabel_allcategory
+            f = funcs.get_fileobj(middata_name,'w',None)
+            json.dump(data_users,f)
+        finally:
+            f.close()
+    else:
+        print("Data from FILE")
+        try:
+            f = funcs.get_fileobj(middata_name,'r',None)
+            data_users = json.load(f)
+        finally:
+            f.close()
+    return data_users
 
 ##[climbCategory][label][data]
 ##--------------プログラム開始------------------
@@ -214,16 +274,40 @@ if __name__ == '__main__':
     files = os.listdir(path_labeled)
     random.shuffle(files)
 
-    target_datanum = 3000
-
+##    climb_cat = ['FLAT', 'CATEGORY1','CATEGORY2',  'CATEGORY3', 'CATEGORY4' ,'HORS_CATEGORIE']
     km_range = np.array(range(9)).astype(np.str)
-    km_labeled = {}
-    km_ok = False
 
-    for file in list(files):
-        data = funcs.read_myjson(os.path.join(path_labeled,file),None,False)
-        for d in data:
-            funcs.write_myjsonfile(funcs.get_filepath(d['climbCategory']+'.myjson',starttime.strftime("%Y%m%d_%H%M%S")),d)
+##    ラベルに基づいてデータを取得
+    label_str = 'km_label'
+    data_users = preparation_data(label_str)
+
+    datanum_dict = get_datanum_eachuser(data_users)
+
+##    カテゴリFLATにてテスト
+    try:
+##        データ数をそろえる
+        keys = ['GRADE','ALTITUDE','DISTANCE','VELOCITY']
+        uid =''
+        
+        darray = [[],[],[],[]]
+        for dic in dic_list :
+            for key in keys:
+                darray[keys.index(key)].extend(dic[key])
+
+##        3データでやった場合
+        darray = np.array(darray)
+        features = scale(darray[:3].transpose())
+        labels = scale(darray[3].transpose())
+        training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+            features,labels,test_size=0.5,random_state=1)
+
+        
+        model = MLPRegressor(activation='logistic', random_state=1)
+        model.fit(training_data,training_label)
+        pred = model.predict(test_data)
+        r2_score(test_label,pred)
+    except:
+        pass
     
 ##    gm_range = np.array(range(5)).astype(np.str)
 ##    gm_labeled = {}
@@ -256,9 +340,9 @@ if __name__ == '__main__':
 ##    finally:
 ##        file.close()
 
-    for label in km_range:
-        for categorie in km_labeled[label].keys():
-            print(str(label)+':'+str(categorie))
+##    for label in km_range:
+##        for categorie in km_labeled[label].keys():
+##            print(str(label)+':'+str(categorie))
             
     
 ##    for file in files:
