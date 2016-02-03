@@ -18,6 +18,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.grid_search import GridSearchCV
 from sklearn import mixture
 from sklearn.externals import joblib
+from sklearn.preprocessing import scale
 import pandas as pd
 import multiprocessing
 import functools
@@ -45,42 +46,31 @@ from datetime import datetime
 ##        userlist.append(temp)
 ##    return userlist
 ##
-####入力データと入力ラベルに基づいたニューラルネットワークの分類器のチューニング
-##def tune_nn_classifier(features,labels):
-##    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
-##        features,labels,test_size=0.5,random_state=1)
-##    parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,7))),
-##                   'hidden_layer_sizes':list(range(50,150))}]
-##    model = MLPClassifier(activation='logistic',algorithm='l-bfgs', random_state=1)
-##    clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
-##    clf.fit(train_data,train_label)
-##    print(clf.best_estimator_)
-##    predicted_label = clf.predict(test_data)
-##    print(classification_report(test_label, predicted_label,digits = 3))
-##    return clf
-##
-####入力データと入力ラベルに基づいてモデルに最適なパラメータを探索
-##def tune_model(features,labels,model,parameters):
-##    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
-##        features,labels,test_size=0.5,random_state=1)
-##    clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
-##    clf.fit(train_data,train_label)
-##    print(clf.best_estimator_)
-##    return clf    
-##
-####入力データと入力ラベルに基づいたランダムフォレストの予測器のチューニング
-##def tune_rf_regressor(features,labels):
-##    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
-##        features,labels,test_size=0.5,random_state=1)
-##    parameters = [{'max_features':['auto','log2'],
-####n_estimatorsは<50で探索すべき
-##                   'n_estimators':list(range(10,50,10))}]
-##    model = RandomForestRegressor(random_state=1)
-##    clf = GridSearchCV(model, parameters, cv=5, n_jobs=3)
-##    clf.fit(train_data,train_label)
-##    print(clf.best_estimator_)
-##    return clf
-##
+##入力データと入力ラベルに基づいたニューラルネットワークの分類器のチューニング
+def tune_nn_classifier(features,labels):
+    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    parameters = [{'alpha':list(map(lambda x:1/(10**x),range(1,5))),                    
+                   'hidden_layer_sizes':list(range(50,150,10)),
+                   'algorithm':['l-bfgs','adam']}]
+    model = MLPRegressor(activation='logistic', random_state=1)
+    clf = GridSearchCV(model, parameters, cv=5, n_jobs=-2)
+    clf.fit(train_data,train_label)
+    print(clf.best_estimator_)
+    return clf
+##入力データと入力ラベルに基づいたランダムフォレストの予測器のチューニング
+def tune_rf_regressor(features,labels):
+    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    parameters = [{'max_features':['auto','log2'],
+##n_estimatorsは<50で探索すべき
+                   'n_estimators':list(range(10,50,10))}]
+    model = RandomForestRegressor(random_state=1)
+    clf = GridSearchCV(model, parameters, cv=5, n_jobs=-2)
+    clf.fit(train_data,train_label)
+    print(clf.best_estimator_)
+    return clf
+
 ####    得たラベルからユーザタイプ分類のためのNNの学習
 ####    inputとtestデータは元データからそれぞれ半分ずつ
 ##def learn_nn(features,labels):
@@ -118,24 +108,24 @@ def regression_nn(features,labels,model):
     print(min(difference)*3.6)
     print(sum(difference)/len(difference)*3.6)
     print(sum(difference)/len(difference)*60)
-##
-####    得たラベルから速度計算のためのRandomForestの学習
-##def regression_rf(features,labels,model):
-##    ##    トレーニングデータとテストデータを半分に割った場合
-##    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
-##        features,labels,test_size=0.5,random_state=1)
-##    model.fit(training_data,training_label)
-##    predicted_label = model.predict(test_data)
-##    print(model)
-##    print(r2_score(test_label,predicted_label))
-####各木で出た数値の平均を取れないか？
-##    difference = []
-##    for d in np.c_[test_label,predicted_label]:
-##        difference.append(abs(float(d[0])-float(d[1])))
-##    print(max(difference)*3.6)
-##    print(min(difference)*3.6)
-##    print(sum(difference)/len(difference)*3.6)
-##    print(sum(difference)/len(difference)*60)
+
+##    得たラベルから速度計算のためのRandomForestの学習
+def regression_rf(features,labels,model):
+    ##    トレーニングデータとテストデータを半分に割った場合
+    training_data,test_data,training_label,test_label = cross_validation.train_test_split(
+        features,labels,test_size=0.5,random_state=1)
+    model.fit(training_data,training_label)
+    predicted_label = model.predict(test_data)
+    print(model)
+    print(r2_score(test_label,predicted_label))
+##各木で出た数値の平均を取れないか？
+    difference = []
+    for d in np.c_[test_label,predicted_label]:
+        difference.append(abs(float(d[0])-float(d[1])))
+    print(max(difference)*3.6)
+    print(min(difference)*3.6)
+    print(sum(difference)/len(difference)*3.6)
+    print(sum(difference)/len(difference)*60)
 ##
 ####重回帰分析
 ##def learn_ra(all_data):
@@ -160,72 +150,6 @@ def regression_nn(features,labels,model):
 ##    print(max(difference)*3.6)
 ##    print(min(difference)*3.6)
 ##    print(sum(difference)/len(difference)*3.6)
-##    print(sum(difference)/len(difference)*60)
-##
-####listにuidが存在するか確認
-##def find_userid(datalist,uid):
-##    for data in datalist:
-##        if uid == data[0]:
-##            return True
-##    return False
-##
-####指定されたインデックスのデータをユーザごとに平均をとる
-####def sum_userdata(all_data,indexes):
-####    userdata = []
-####    for data in all_data:
-####        if find_userid(userdata,data[0]):
-##
-####各列毎の平均値をとる
-##def get_average(tup):
-##    uid = tup[0]
-##    data = tup[1]
-##    speed_array = np.array(data['data']).astype(np.float)[:,1:4]
-####    nan要素をマスキングで計算に現れずにする
-##    masked_array = np.ma.masked_array(speed_array,np.isnan(speed_array))
-##    speed = np.mean(masked_array,axis=0)
-##    ##        np.nansumでnanを無視した合計を取ってくれる便利なヤツあり
-####    maskした後mean取ると--になっているところを無視して平均取ってくれる
-##    return uid, speed,len(data['climbCategory'])
-##
-####keyに基づいてdicからデータを取得
-####keyのなかでデータがないものがあれば省く
-##def make_onedata(dic,keys):
-##    data = []
-##    for key in keys:
-##        d = dic[key]
-####        データが存在しない場合無視するためにNoneを代入
-##        if d == '-1':
-##            d = None
-##        data.append(d)
-##    return data,dic['userid'],dic['climbCategory']
-##
-####ユーザデータにラベルを付与
-####現在は欠損値があるデータを削除している
-##def add_labels(tup,uids,labels):
-##    uid = tup[0]
-##    data = tup[1]
-##
-##    if uid not in uids:
-##        return None
-##    data = np.array(data['data']).astype(np.float)
-####    欠損値を削除
-##    data = data[~np.isnan(data).any(axis=1)]
-##    if len(data) == 0:
-##        print(uid)
-##        return None
-##    label = np.array([labels[uids.index(uid)]]*len(data))
-##    return np.c_[data,label]
-##
-####climbCategory毎の回数を記録
-####pythonは引数で与えられた変数を直接弄る？
-####dictだからメモリが引数として与えられている？
-##def update_climbCategory(dic,climbCategory):
-##    if climbCategory in dic.keys():
-##        dic[climbCategory] += 1
-##    else:
-##        dic[climbCategory] = 1
-##    return dic
-
 
 ##各クラスタに所属するデータを追加
 ##target条件を満たしていたら追加しない
@@ -268,7 +192,7 @@ if __name__ == '__main__':
     files = os.listdir(path_labeled)
 ##    random.shuffle(files)
 
-    target_datanum = 100
+    target_datanum = 3000
 
     km_range = np.array(range(9)).astype(np.str)
     km_labeled = {}
@@ -278,23 +202,48 @@ if __name__ == '__main__':
     gm_labeled = {}
     gm_ok = False
 
-    for file in files:
-##        [{},{}]の形式でデータを取得
-        data = funcs.read_myjson(os.path.join(path_labeled,file),1,True)
-        if km_ok is False:
-            for d in data:
-                add_labeleddata(km_labeled,d,target_datanum,'km_label')
-            if hasdata_eachlabel(km_labeled,km_range,target_datanum) is True:
-                km_ok = True
-                
-        if gm_ok is False:
-            for d in data:
-                add_labeleddata(gm_labeled,d,target_datanum,'gm_label')
-            if hasdata_eachlabel(gm_labeled,gm_range,target_datanum) is True:
-                gm_ok = True
+##    for file in files:
+####        [{},{}]の形式でデータを取得
+##        data = funcs.read_myjson(os.path.join(path_labeled,file),1,True)
+##        if km_ok is False:
+##            for d in data:
+##                add_labeleddata(km_labeled,d,target_datanum,'km_label')
+##            if hasdata_eachlabel(km_labeled,km_range,target_datanum) is True:
+##                km_ok = True
+##                
+##        if gm_ok is False:
+##            for d in data:
+##                add_labeleddata(gm_labeled,d,target_datanum,'gm_label')
+##            if hasdata_eachlabel(gm_labeled,gm_range,target_datanum) is True:
+##                gm_ok = True
+##
+##        if km_ok is True and gm_ok is True:
+##            break
 
-        if km_ok is True and gm_ok is True:
-            break
-    darray = np.array(km_labeled[km_range[0]])
-    print(darray)
+    f = open('gm_labeled.json')
+    gm_labeled = json.load(f)
+    f.close()
+        
+##    km_nn_models = []
+##    km_rf_models = []
+##    for index in km_range:
+##        darray = np.array(km_labeled[km_range[index]])
+##        data = scale(darray[:3].transpose())
+##        labels = scale(darray[3].transpose())
+##        model = tune_nn_classifier(data,labels)
+##        km_nn_models.append(model)
+##        model = tune_nn_classifier(data,labels)
+##        km_rf_models.append(model)
+##        
+    gm_nn_models = []
+    gm_rf_models = []
+    for index in gm_range:
+        darray = np.array(gm_labeled[gm_range[index]])
+        data = scale(darray[:3].transpose())
+        labels = scale(darray[3].transpose())
+        model = tune_nn_classifier(data,labels)
+        gm_nn_models.append(model)
+        model = tune_nn_classifier(data,labels)
+        gm_rf_models.append(model)
+
     funcs.end_program()

@@ -94,11 +94,12 @@ def get_avespeed(path):
 if __name__ == '__main__':
     starttime = funcs.start_program()
     np.random.seed(0)
-    df = pd.read_csv('results\\labels.csv')
+    df = pd.read_csv('results\\cluster_analysis\\labels.csv')
     colnames = df.columns
     labeled_users = list(df[colnames[0]])
     km_label = list(df[colnames[1]])
     gmm_label = list(df[colnames[2]])
+    ms_label = list(df[colnames[3]])
     try:
         working_path = 'F:\\study\\strava\\finished'
         save_path = 'results\\data_for_regression\\'+starttime.strftime("%Y%m%d_%H%M%S")
@@ -122,6 +123,7 @@ if __name__ == '__main__':
                     index = labeled_users.index(uid)
                     data['km_label']=str(km_label[index])
                     data['gm_label']=str(gmm_label[index])
+                    data['ms_label']=str(ms_label[index])
                 else:
                     save_to = os.path.join(save_path,'notlabeled')
 
