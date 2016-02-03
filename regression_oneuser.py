@@ -207,21 +207,68 @@ def get_userdata(data_users,files,readrows,randflag):
             update_userdata(data_users[file],d)
     return data_users
 
-##各ユーザのデータ数を取得
-def get_datanum_eachuser(data_users):
-    datanum_dict = {}
+##各ユーザのデータを取得
+def get_data_eachuser(data_users,keys,need_num):
+    rundata_dict = {}
     for unamekey in data_users.keys():
-        datanum_dict[unamekey] = {}
+        rundata_dict[unamekey] = {}
+        rundata_dict[unamekey]['datanum'] = {}
         data = data_users[unamekey]
-        for key in data.keys():
-            num = 0
-##                  クライムカテゴリごとのデータ数の総計を取得
-##            data[key]にはあるクライムカテゴリのデータがdictのlistとして格納されている
-            for d in data[key]:
-##                どれをとっても同じなのでvelocityのデータ数を取ってる
-                num += len(d['VELOCITY'])
-            datanum_dict[unamekey][key] = num
-    return datanum_dict
+        for catnamekey in data.keys():
+            temp_array = [[],[],[],[]]
+            data = data_users[unamekey][catnamekey]
+            rundata_dict[unamekey]['datanum'][catnamekey] = 0
+            for run_data in data:
+                for key in keys:
+                    index = keys.index(key)
+                    temp_array[index].extend(run_data[key])
+##                    データ数を数える
+                    if key is 'VELOCITY':
+                        rundata_dict[unamekey]['datanum'][catnamekey]+=len(run_data[key])
+            rundata_dict[unamekey][catnamekey]=temp_array
+##            データ数がneed_numに達しているか確認
+            if(rundata_dict[unamekey]['datanum'][catnamekey]<need_num):
+                del rundata_dict[unamekey]
+                break
+            
+    return rundata_dict
+
+##各ユーザのデータをそろえる
+def align_data_eachuser(actdata_dict,keys,need_num):
+##個数のカウント
+    for unamekey in actdata_dict.keys():
+        data = actdata_dict[unamekey]
+        for catnamekey in data.keys():
+            data = actdata_dict[unamekey][catnamekey]
+            if catnamekey is 'datanum':
+                ##            記録しているデータ数はlengthで取得している
+                for catnamekey_fornum in data.keys():
+                    data = actdata_dict[unamekey][catnamekey][catnamekey_fornum]
+                    if data < need_num:
+                        need_num = data
+                break
+
+##データをneed_numにそろえる
+    for unamekey in actdata_dict.keys():
+        data = actdata_dict[unamekey]
+        for catnamekey in data.keys():
+            data = actdata_dict[unamekey][catnamekey]
+            if catnamekey is not 'datanum':
+                length = actdata_dict[unamekey]['datanum'][catnamekey]
+##                長さ分のindexを確保
+                pickup_indexes = range(length)
+##                シャッフル（戻り値None）
+                random.shuffle(list(pickup_indexes))
+##                所望の長さへ変換
+                pickup_indexes = pickup_indexes[:need_num]
+                for key in keys:
+                    index = keys.index(key)
+##                    pickup_indexesがさすindexのデータを取得
+                    data = actdata_dict[unamekey][catnamekey][index]
+                    temp_list = []
+                    for pickup_index in pickup_indexes:
+                        temp_list.append(data[pickup_index])
+                    actdata_dict[unamekey][catnamekey][index] = temp_list
 
 ##データの準備
 def preparation_data(label_str):
@@ -281,18 +328,34 @@ if __name__ == '__main__':
     label_str = 'km_label'
     data_users = preparation_data(label_str)
 
-    datanum_dict = get_datanum_eachuser(data_users)
-
+    keys = ['GRADE','ALTITUDE','DISTANCE','VELOCITY']
+    ##最低データ点数を指定
+    need_num = 1000
+    actdata_dict = get_data_eachuser(data_users,keys,need_num)
+    ##欲しいデータ点数を指定
+    need_num = 1000
+    align_data_eachuser(actdata_dict,keys,need_num)
+    print(actdata_dict.keys())
 ##    カテゴリFLATにてテスト
     try:
 ##        データ数をそろえる
-        keys = ['GRADE','ALTITUDE','DISTANCE','VELOCITY']
+        
         uid =''
         
-        darray = [[],[],[],[]]
-        for dic in dic_list :
-            for key in keys:
-                darray[keys.index(key)].extend(dic[key])
+
+        rundata_dict = {}
+        for unamekey in data_users.keys():
+            rundata_dict[unamekey] = {}
+            data = data_users[unamekey]
+            for catnamekey in data.keys():
+                temp_array = [[],[],[],[]]
+                data = data_users[unamekey][catnamekey]
+                for run_data in data:
+                    for key in keys:
+                        index = keys.index(key)
+                        temp_array[index].extend(run_data[key])
+                rundata_dict[unamekey][catnamekey]=temp_array
+                    
 
 ##        3データでやった場合
         darray = np.array(darray)
@@ -306,9 +369,9 @@ if __name__ == '__main__':
         model.fit(training_data,training_label)
         pred = model.predict(test_data)
         r2_score(test_label,pred)
-    except:
+    finally:
         pass
-    
+    funcs.end_program()
 ##    gm_range = np.array(range(5)).astype(np.str)
 ##    gm_labeled = {}
 ##    gm_ok = False
@@ -390,4 +453,4 @@ if __name__ == '__main__':
 ##        model = tune_nn_classifier(data,labels)
 ##        gm_rf_models.append(model)
 
-    funcs.end_program()
+    
