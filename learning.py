@@ -310,6 +310,25 @@ if __name__ == '__main__':
 ##        クラス0のデータの平均と分散に基づいてデータの検索
         print(np.mean(data_forlabel[labels==0],axis=0))
         plot_data_3D(data_forlabel,labels)
+
+##        nnの現状版のモデル
+        datalist = []
+        for i in range(9):
+                datalist.append(data_forlabel[labels==i])
+        
+        model = MLPRegressor(activation='logistic',algorithm='l-bfgs',alpha=0.1,hidden_layer_sizes=83,random_state=1)
+
+
+
+
+
+
+
+
+
+
+
+
 ##        datas = p.map(lambda x:(np.mean(data_forlabel[labels==x],axis=0),
 ##                                np.mean(data_forlabel[labels==x],axis=0)),range(clusters))
 ##        ##        チューニング用の関数

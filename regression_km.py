@@ -469,10 +469,9 @@ if __name__ == '__main__':
     km_range = np.array(range(9)).astype(np.str)
     gm_range = np.array(range(5)).astype(np.str)
     fig_list = []
-    for label in gm_range:
+    for label in km_range:
         data_users=[]
         label_str = 'km_label'
-        label_str = 'gm_label'
         person_num = 30
         ##データ点数を指定
         min_datanum = 10000
