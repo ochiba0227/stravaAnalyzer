@@ -6,6 +6,7 @@ import pandas as pd
 from matplotlib import pylab
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
+from matplotlib import animation
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.cluster import KMeans,MeanShift,estimate_bandwidth
 from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
@@ -21,6 +22,7 @@ from x_means import XMeans
 import multiprocessing
 import functools
 import funcs
+import make_movie
 from sklearn.externals import joblib
 
 ##listにuidが存在するか確認
@@ -59,18 +61,29 @@ def tune_MS(data):
 ##入力データと入力ラベルに基づいてGMMに最適なパラメータを探索
 def tune_GMM(data):
     lowest_bic = np.infty
-    bic = []
-    n_components_range = range(1, 7)
+    bic = np.array([['bic']], dtype=object)
+    aic = np.array([['aic']], dtype=object)
+    n_components_range = range(2, 50)
     cv_types = ['spherical', 'tied', 'diag', 'full']
     for cv_type in cv_types:
+        bic = np.r_[bic,[[cv_type]]]
+        aic = np.r_[aic,[[cv_type]]]
         for n_components in n_components_range:
             # Fit a mixture of Gaussians with EM
             gmm = mixture.GMM(n_components=n_components, covariance_type=cv_type, random_state=1)
             gmm.fit(data)
-            bic.append(gmm.bic(data))
+            bic = np.r_[bic,np.array([[gmm.bic(data)]])]
+            aic = np.r_[aic,np.array([[gmm.aic(data)]])]
             if bic[-1] < lowest_bic:
                 lowest_bic = bic[-1]
                 best_gmm = gmm
+    write_rows = np.c_[bic,aic]
+    try:
+        file = funcs.get_fileobj('gmm_result.csv','w',None)
+        writer = csv.writer(file, lineterminator='\n')
+        writer.writerows(write_rows)
+    finally:
+        file.close()
     return best_gmm
 
 ##各列毎の平均値をとる
@@ -123,6 +136,28 @@ def update_climbCategory(dic,climbCategory):
     else:
         dic[climbCategory] = 1
     return dic
+
+##クラスタごとに色分けしてアニメーション
+##コマンドプロンプトから実行しないとmendoderにパスが通っていないから動かない
+def animate_data_3D(data,classes):
+    fig = plt.figure()
+    fig.set_size_inches(800,800)
+    fig.set_dpi(800)
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(data[:,0], data[:,1], data[:,2], c=classes.astype(np.float))
+    ax.set_axis_off()
+##        ax.w_xaxis.set_ticklabels([])
+##        ax.w_yaxis.set_ticklabels([])
+##        ax.w_zaxis.set_ticklabels([])
+##        ax.set_xlabel('Negative Grade')
+##        ax.set_ylabel('No Grade')
+##        ax.set_zlabel('Positive Grade')
+    angles = np.linspace(0,720)[:-1]*0.5
+##    make_movie.rotanimate(ax, angles,'F:\\study\\analiser\\movie.gif',delay=20)
+    outpath = funcs.get_filepath('movie.mp4',None)
+    make_movie.rotanimate(ax, angles,outpath,fps=10,bitrate=100000000)
+##    anime = animation.ArtistAnimation(fig,axs, interval=1, repeat_delay=1000)
+##    anime.save('basic_animation.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
 
 ##クラスタごとに色分けしてプロット
 def plot_data_3D(data,classes):
@@ -219,10 +254,15 @@ if __name__ == '__main__':
 
 ##GMMでクラスタリング
 ##        GMMのチューニング
-    gmm = tune_GMM(scaled_data)
+##    gmm = tune_GMM(scaled_data)
+    gmm = mixture.GMM(covariance_type='full', init_params='wmc', min_covar=0.001,
+  n_components=5, n_init=1, n_iter=100, params='wmc', random_state=1,
+  tol=0.001, verbose=0)
+    gmm.fit(scaled_data)
     gm_labels = gmm.predict(scaled_data)
+    animate_data_3D(data,gm_labels)
+##    plot_data_2D(scaled_data,gm_labels,['Negative Grade','No Grade','Positive Grade'])
 
-##MeanShiftでクラスタリング
 ##    ms_model = tune_MS(scaled_data)
     ms_model = MeanShift(bandwidth=0.35299999999999998)
     ms_model.fit(scaled_data)

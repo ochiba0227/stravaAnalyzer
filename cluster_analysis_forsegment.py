@@ -236,7 +236,9 @@ if __name__ == '__main__':
 ##        GMMのチューニング
     gmm = tune_GMM(scaled_data)
     gm_labels = gmm.predict(scaled_data)
+    plot_data_3D(data,gm_labels)
 
+    
 ##MeanShiftでクラスタリング
 ##    ms_model = tune_MS(scaled_data)
     ms_model = MeanShift(bandwidth=0.35299999999999998)

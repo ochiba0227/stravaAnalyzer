@@ -372,8 +372,9 @@ def regresson_category(actdata_dict,keys,label):
     print(actdata_dict.keys())
     models = []
     scores = []
-    
-    f = funcs.get_fileobj('rf.csv','w','rf')
+    model_str = 'nn'
+
+    f = funcs.get_fileobj(model_str+'.csv','w',model_str)
     writer = csv.writer(f)
     array_a = []
     array_p = []
@@ -398,9 +399,16 @@ def regresson_category(actdata_dict,keys,label):
         
         train_data,test_data,train_label,test_label = cross_validation.train_test_split(
         X,y,test_size=0.5,random_state=1)
-##        model = RandomForestRegressor(max_features='log2')
-##        model = MLPRegressor(hidden_layer_sizes=83,alpha=0.1)
-        model = PassiveAggressiveRegressor()
+        if model_str is 'nn': 
+            model = MLPRegressor(hidden_layer_sizes=83,alpha=0.1)
+        if model_str is 'rf': 
+            model = RandomForestRegressor(max_features='log2')
+        if model_str is 'svm': 
+           model = PassiveAggressiveRegressor()
+        else:
+            print('model_str', model_str,'ERROR!!!!')
+            exit(-1)
+       
         model.fit(train_data,train_label)
         pred = model.predict(test_data)
         models.append(model)
@@ -418,14 +426,15 @@ def regresson_category(actdata_dict,keys,label):
         print('-----------------------------------')
     print(np.array(scores))
     print(sum(errors)/len(errors)*3.6)
-##    fig = plt.figure()
-##    for i in range(6):
-##        fig.add_subplot(2,3,i+1)
-##        plt.plot(array_a[i][:30], 'r')
-##        plt.plot(array_p[i][:30], 'k--')
-##        plt.title(climb_cat[i])
-##    plt.tight_layout()
-##    plt.savefig('image_rf'+label+'.png')
+    
+    fig = plt.figure()
+    for i in range(6):
+        fig.add_subplot(2,3,i+1)
+        plt.plot(array_a[i][:30], 'r')
+        plt.plot(array_p[i][:30], 'k--')
+        plt.title(climb_cat[i])
+    plt.tight_layout()
+    plt.savefig(funcs.get_filepath('image_'+model_str+label+'.png',model_str))
     f.close()
     return models
 
@@ -478,14 +487,14 @@ if __name__ == '__main__':
         min_datanum = 10000
         data_users = preparation_data(label_str,label,person_num,min_datanum,False)
 
-##        ##取得対象のデータ
-##        keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
-##        ##最低データ点数を指定
-##        keyss = data_users.keys()
-##        actdata_dict = get_data_eachuser(data_users,keys,min_datanum)
-##        align_data_eachuser(actdata_dict,keys,min_datanum)
-##        models = regresson_category(actdata_dict,keys,label)
-##
+        ##取得対象のデータ
+        keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
+        ##最低データ点数を指定
+        keyss = data_users.keys()
+        actdata_dict = get_data_eachuser(data_users,keys,min_datanum)
+        align_data_eachuser(actdata_dict,keys,min_datanum)
+        models = regresson_category(actdata_dict,keys,label)
+
 ####       モデル作った後のやつ
 ##        for_pred = get_a_data(list(actdata_dict.keys()),label,label_str)
 ##
