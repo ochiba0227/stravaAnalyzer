@@ -19,7 +19,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.grid_search import GridSearchCV
 from sklearn import mixture
 from sklearn.externals import joblib
-from sklearn.preprocessing import scale
+from sklearn.preprocessing import scale, Normalizer,StandardScaler
 import pandas as pd
 import multiprocessing
 import functools
@@ -372,7 +372,7 @@ def regresson_category(actdata_dict,keys,label):
     print(actdata_dict.keys())
     models = []
     scores = []
-    model_str = 'nn'
+    model_str = 'rf'
 
     f = funcs.get_fileobj(model_str+'.csv','w',model_str)
     writer = csv.writer(f)
@@ -384,7 +384,14 @@ def regresson_category(actdata_dict,keys,label):
         darray = make_dataarray(actdata_dict,keys,category)
     ##        k-foldはXを説明変数，yを目的変数とする
         X = darray[:3].transpose()
-        y = darray[3].transpose()
+        y = darray[3]
+##        http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html#sklearn.preprocessing.StandardScaler
+        scaler_exp = StandardScaler().fit(X)
+        X = scaler_exp.transform(X)
+        scaler_ret = StandardScaler().fit(y)
+        y = scaler_ret.transform(y)
+        joblib.dump(scaler_exp, funcs.get_filepath('exp_'+category+'_'+model_str+'_'+label+'.pkl',os.path.join('scaler',model_str)))
+        joblib.dump(scaler_ret, funcs.get_filepath('ret_'+category+'_'+model_str+'_'+label+'.pkl',os.path.join('scaler',model_str)))
 ##        model = tuneSVM(X,y)
 ##        kf = KFold(len(y),n_folds=10)        
 ##        result = [[],[],[]]
@@ -399,22 +406,20 @@ def regresson_category(actdata_dict,keys,label):
         
         train_data,test_data,train_label,test_label = cross_validation.train_test_split(
         X,y,test_size=0.5,random_state=1)
-        if model_str is 'nn': 
+        if model_str in 'nn': 
             model = MLPRegressor(hidden_layer_sizes=83,alpha=0.1)
-        if model_str is 'rf': 
+        elif model_str in 'rf': 
             model = RandomForestRegressor(max_features='log2')
-        if model_str is 'svm': 
+        elif model_str in 'svm': 
            model = PassiveAggressiveRegressor()
         else:
             print('model_str', model_str,'ERROR!!!!')
             exit(-1)
-       
+            
         model.fit(train_data,train_label)
+        joblib.dump(model, funcs.get_filepath(category+'_'+model_str+'_'+label+'.pkl',os.path.join('model',model_str)))
         pred = model.predict(test_data)
         models.append(model)
-        gosa = test_label-pred
-        errors.append(sum(gosa)/len(gosa))
-        scores.append(round(r2_score(test_label,pred),4))
         print(r2_score(test_label,pred))
         writer.writerow(np.array(test_label).transpose())
         writer.writerow(np.array(pred).transpose())
@@ -425,8 +430,8 @@ def regresson_category(actdata_dict,keys,label):
 ##        print("mae:"+str(np.mean(result[2])))
         print('-----------------------------------')
     print(np.array(scores))
-    print(sum(errors)/len(errors)*3.6)
-    
+
+##    図の描画
     fig = plt.figure()
     for i in range(6):
         fig.add_subplot(2,3,i+1)
@@ -434,9 +439,75 @@ def regresson_category(actdata_dict,keys,label):
         plt.plot(array_p[i][:30], 'k--')
         plt.title(climb_cat[i])
     plt.tight_layout()
-    plt.savefig(funcs.get_filepath('image_'+model_str+label+'.png',model_str))
+    plt.savefig(funcs.get_filepath('image_'+model_str+'_'+label+'.png',model_str))
     f.close()
     return models
+
+##def regresson_category(actdata_dict,keys,label):
+####    カテゴリ毎にテスト
+##    climb_cat = ['FLAT', 'CATEGORY4',  'CATEGORY3', 'CATEGORY2' ,'CATEGORY1','HORS_CATEGORIE']
+##    print(actdata_dict.keys())
+##    models = []
+##    scores = []
+##    
+##    array_a = []
+##    array_p_nn = []
+##    array_p_rf = []
+##    for category in climb_cat:
+##        print('-----------'+category+'-------------')
+##        darray = make_dataarray(actdata_dict,keys,category)
+##    ##        k-foldはXを説明変数，yを目的変数とする
+##        X = scale(darray[:3].transpose())
+##        y = scale(darray[3].transpose())
+##        
+##        train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+##        X,y,test_size=0.5,random_state=1)
+##        model = MLPRegressor(hidden_layer_sizes=83,alpha=0.1)
+##        model.fit(train_data,train_label)
+##        pred = model.predict(test_data)
+##        array_a.append(np.array(test_label))
+##        array_p_nn.append(np.array(pred))
+##        
+##        model = RandomForestRegressor(max_features='log2')
+##        model.fit(train_data,train_label)
+##        pred = model.predict(test_data)
+##        array_a.append(np.array(test_label))
+##        array_p_rf.append(np.array(pred))
+##        print('-----------------------------------')
+##
+####    図の描画
+##    model_str = 'nn'
+##    fig = plt.figure()
+##    for i in range(6):
+##        fig.add_subplot(2,3,i+1)
+##        plt.plot(array_a[i][:30], 'k')
+##        plt.plot(array_p_nn[i][:30], 'r--')
+##        plt.title(climb_cat[i])
+##    plt.tight_layout()
+##    plt.savefig(funcs.get_filepath('image_'+model_str+'_'+label+'.png',model_str))
+##
+##    model_str = 'rf'
+##    fig = plt.figure()
+##    for i in range(6):
+##        fig.add_subplot(2,3,i+1)
+##        plt.plot(array_a[i][:30], 'k')
+##        plt.plot(array_p_rf[i][:30], 'b--')
+##        plt.title(climb_cat[i])
+##    plt.tight_layout()
+##    plt.savefig(funcs.get_filepath('image_'+model_str+'_'+label+'.png',model_str))
+##
+####    model_str = 'both'
+####    fig = plt.figure()
+####    for i in range(6):
+####        fig.add_subplot(2,3,i+1)
+####        plt.plot(array_a[i][:30], 'k')
+####        plt.plot(array_p_nn[i][:30], 'r--')
+####        plt.plot(array_p_rf[i][:30], 'b--')
+####        plt.title(climb_cat[i])
+####    plt.tight_layout()
+####    plt.savefig(funcs.get_filepath('image_'+model_str+'_'+label+'.png',model_str))
+##    
+##    return models
 
 ##ラベルが同じで学習に使用していないファイル名を一つ取得
 def get_a_data(fnames,label,label_str):

@@ -236,6 +236,8 @@ def get_filepath(fname,joinpath):
     opath = os.path.join('results',root)
     if joinpath is not None:
         opath = os.path.join(opath,joinpath)
+    if os.path.exists(opath) is False:
+        make_dir(opath)
     return os.path.join(opath,fname)
 
 ##辞書から最大値を持つキーを返す

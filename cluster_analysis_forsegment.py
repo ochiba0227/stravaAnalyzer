@@ -235,6 +235,7 @@ if __name__ == '__main__':
 ##GMMでクラスタリング
 ##        GMMのチューニング
     gmm = tune_GMM(scaled_data)
+    joblib.dump(gmm, funcs.get_filepath('gmmpred.pkl',gmmmodel))
     gm_labels = gmm.predict(scaled_data)
     plot_data_3D(data,gm_labels)
 

@@ -260,7 +260,8 @@ if __name__ == '__main__':
   tol=0.001, verbose=0)
     gmm.fit(scaled_data)
     gm_labels = gmm.predict(scaled_data)
-    animate_data_3D(data,gm_labels)
+    joblib.dump(gmm, funcs.get_filepath('gmmpred.pkl','gmm_model'))
+##    animate_data_3D(data,gm_labels)
 ##    plot_data_2D(scaled_data,gm_labels,['Negative Grade','No Grade','Positive Grade'])
 
 ##    ms_model = tune_MS(scaled_data)
