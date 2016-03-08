@@ -13,11 +13,34 @@ import inspect
 from sklearn.externals import joblib
 import linecache
 
+##ファイルの行数をカウント
+def count_filerow(readfname):
+    rows = 1
+    while True:
+        line = linecache.getline(readfname, rows)
+        if line == '':
+            break
+        rows += 1
+        if rows % 10000 == 0:
+            linecache.clearcache()
+    return rows
+
 ##名前を指定してモデルを保存
 def save_model(model,name):
     save_dir = 'results\\models\\'+name
     make_dir(save_dir)
     joblib.dump(model, os.path.join(save_dir,name+'.pkl')) 
+
+##myjsonファイルの結合
+def joint_myjson(readfname,writefname):
+    writefp = open(writefname,'a')
+    readfp = open(readfname,'r')
+    line = readfp.readline()
+    while line:
+        writefp.write(line)
+        line = readfp.readline()
+    writefp.close()
+    readfp.close()
 
 ##myjsonファイルの読み込み
 ##numが指定されていれば，num個のdictを含むlistを返す

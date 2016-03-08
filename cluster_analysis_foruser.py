@@ -24,6 +24,7 @@ import functools
 import funcs
 import make_movie
 from sklearn.externals import joblib
+from sklearn.preprocessing import scale, Normalizer,StandardScaler
 
 ##listにuidが存在するか確認
 def find_userid(datalist,uid):
@@ -161,26 +162,28 @@ def animate_data_3D(data,classes):
 
 ##クラスタごとに色分けしてプロット
 def plot_data_3D(data,classes):
+    fp = font_manager.FontProperties(fname=r'C:\WINDOWS\Fonts\migmix-1p-regular.ttf', size=14)
     fig = plt.figure()
     ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=48, azim=134)
     ax.scatter(data[:,0], data[:,1], data[:,2], c=classes.astype(np.float))
-    ax.w_xaxis.set_ticklabels([])
-    ax.w_yaxis.set_ticklabels([])
-    ax.w_zaxis.set_ticklabels([])
-    ax.set_xlabel('Negative Grade')
-    ax.set_ylabel('No Grade')
-    ax.set_zlabel('Positive Grade')
+##    ax.w_xaxis.set_ticklabels([])
+##    ax.w_yaxis.set_ticklabels([])
+##    ax.w_zaxis.set_ticklabels([])
+    ax.set_xlabel('下り(km/h)', fontproperties=fp)
+    ax.set_ylabel('平地(km/h)', fontproperties=fp)
+    ax.set_zlabel('登り(km/h)', fontproperties=fp)
     plt.show()
 
 ##クラスタごとに色分けしてプロット
 def plot_data_2D(data,classes,components_label):
+    fp = font_manager.FontProperties(fname=r'C:\WINDOWS\Fonts\migmix-1p-regular.ttf', size=14)
     fig = plt.figure()
     data_len = len(components_label)
     for x in range(data_len):
         for y in range(data_len):
             ax = fig.add_subplot(data_len,data_len,1+y+x*data_len)
             if x == y:
-                ax.text(0,0,components_label[x])
+                ax.text(0.35,0.5,components_label[x],fontproperties=fp,fontsize=24)
             else:
                 ax.scatter(data[:,x], data[:,y], c=classes.astype(np.float))
     plt.show()  
@@ -245,11 +248,12 @@ if __name__ == '__main__':
 ##    クラスタリング開始
     uids = data[:,0]
     data = data[:,2:5]
-    scaled_data = scale(data)
+    scaler = StandardScaler().fit(data)
+    scaled_data = scaler.transform(data)
 ##kmeansでクラスタリング
-    kmeans_model = KMeans(n_clusters=9, random_state=1)
-    kmeans_model.fit(scale(scaled_data))
-    km_labels = np.array(kmeans_model.labels_)
+##    kmeans_model = KMeans(n_clusters=9, random_state=1)
+##    kmeans_model.fit(scale(scaled_data))
+##    km_labels = np.array(kmeans_model.labels_)
 ##        plot_data_2D(data,labels,components_label)
 
 ##GMMでクラスタリング
@@ -261,21 +265,22 @@ if __name__ == '__main__':
     gmm.fit(scaled_data)
     gm_labels = gmm.predict(scaled_data)
     joblib.dump(gmm, funcs.get_filepath('gmmpred.pkl','gmm_model'))
-    animate_data_3D(data,gm_labels)
-##    plot_data_2D(scaled_data,gm_labels,['Negative Grade','No Grade','Positive Grade'])
+##    plot_data_3D(data*3.6,gm_labels)
+##    animate_data_3D(data,gm_labels)
+    plot_data_2D(data*3.6,gm_labels,['下り(km/h)','平地(km/h)','登り(km/h)'])
 
 ##    ms_model = tune_MS(scaled_data)
-    ms_model = MeanShift(bandwidth=0.35299999999999998)
-    ms_model.fit(scaled_data)
-    ms_labels = ms_model.labels_
-    
-    try:
-        file = funcs.get_fileobj('labels.csv','w',None)
-        writer = csv.writer(file, lineterminator='\n')
-        writer.writerow(['uid','9-means','GMM','MeanShift'])
-        writer.writerows(np.c_[uids,km_labels,gm_labels,ms_labels])
-    finally:
-        file.close()
+##    ms_model = MeanShift(bandwidth=0.35299999999999998)
+##    ms_model.fit(scaled_data)
+##    ms_labels = ms_model.labels_
+##    
+##    try:
+##        file = funcs.get_fileobj('labels.csv','w',None)
+##        writer = csv.writer(file, lineterminator='\n')
+##        writer.writerow(['uid','9-means','GMM','MeanShift'])
+##        writer.writerows(np.c_[uids,km_labels,gm_labels,ms_labels])
+##    finally:
+##        file.close()
 ##        kmeansの重心のプロット
 ##        centers = kmeans_model.cluster_centers_
 ##        plot_data_2D(centers,np.array(range(cluster_num)),components_label)

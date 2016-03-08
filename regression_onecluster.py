@@ -29,6 +29,11 @@ from datetime import datetime
 from sklearn.cross_validation import KFold
 from sklearn import svm
 from sklearn.linear_model import PassiveAggressiveRegressor
+import linecache
+
+##DeprecationWarningを非表示
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning) 
 
 def tuneSVM(features,labels):
     train_data,test_data,train_label,test_label = cross_validation.train_test_split(
@@ -371,10 +376,9 @@ def preparation_data(label_str,target_label,person_num,min_datanum,make_newfile)
 ##  gamma=0.35938136638046259, kernel='rbf', max_iter=-1, shrinking=True,
 ##  tol=0.001, verbose=False)
 
-def regresson_category(actdata_dict,keys):
+def regresson_category(darray):
 ##    カテゴリ毎にテスト
     climb_cat = ['FLAT', 'CATEGORY4',  'CATEGORY3', 'CATEGORY2' ,'CATEGORY1','HORS_CATEGORIE']
-    print(actdata_dict.keys())
     models = []
     scores = []
     model_str = 'rf'
@@ -386,7 +390,6 @@ def regresson_category(actdata_dict,keys):
     errors = []
     for category in climb_cat:
         print('-----------'+category+'-------------')
-        darray = make_dataarray(actdata_dict,keys,category)
     ##        k-foldはXを説明変数，yを目的変数とする
         X = darray[:3].transpose()
         y = darray[3]
@@ -463,7 +466,259 @@ def a_data_to_testdata(data,keys):
             temp_array.append([])
         temp_array[index].extend(data[key])
     return np.array(temp_array)
+
+##全データの結合
+def joint_alldata(label_str,starttime):
+##    学習で使用するデータの準備
+    path_labeled = 'results\\data_for_regression\\20160203_011146\\labeled'
+    files = os.listdir(path_labeled)
+    counter = 1;
+    length = len(files)
+    for file in files:
+        ##            全データをコピー
+        data = funcs.read_myjson(os.path.join(path_labeled,file),1,False)
+        print(file,os.path.getsize(os.path.join(path_labeled,file)),round(counter/length, 3),'% label:',data[0][label_str])
+        funcs.joint_myjson(os.path.join(path_labeled,file),funcs.get_filepath(label_str+'_'+data[0][label_str]+'.myjson',starttime))
+        counter+=1
+
+##ディクショナリに全鍵が存在するか確認
+def has_allkey(keys,dd):
+    for key in keys:
+        if key not in dd.keys():
+            return False
+    return True
+
+##     ユーザ数と各クラスタのデータ数を表示
+def show_data():
+    counter = 0
+    readfname = funcs.get_filepath('gm_label_'+str(counter)+'.myjson','20160224_041836')
+    keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
+    climb_cat = ['FLAT', 'CATEGORY4',  'CATEGORY3', 'CATEGORY2' ,'CATEGORY1','HORS_CATEGORIE']
+    while os.path.exists(readfname):
+        print('--------',counter,'--------')
+        users = [{},{},{},{},{},{}]
+        length = [[],[],[],[],[],[]]
+        readfp = open(readfname,'r')
+        line = readfp.readline()
+        while line:
+            have_allkey = True
+            dd = json.loads(line)
+            if dd['climbCategory'] in climb_cat:
+                index = climb_cat.index(dd['climbCategory'])
+                label = int(dd['gm_label'])
+                users[index][dd['userid']] = 1
+                if has_allkey(keys,dd):
+                    length[index].extend(dd['VELOCITY'])
+            line = readfp.readline()
+        for c in climb_cat:
+            index = climb_cat.index(c)
+            print(climb_cat[index],',',len(users[index]),',',len(length[index]))
+        readfp.close()
+        counter += 1
+        readfname = funcs.get_filepath('gm_label_'+str(counter)+'.myjson','20160224_041836')
+
+##indexが存在すれば
+def has_index(line_indexes,index):
+    for i in line_indexes:
+        if(i == index):
+            return True
+    return False
+
+#all_dataをファイルから作成
+def make_all_data_ignore():
+    keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
+    for counter in range(5):
+        print('--------',counter,'--------')
+        data = [[],[],[],[]]
+        readfname = funcs.get_filepath('picked_ignore_'+str(counter)+'.myjson','20160224_041836')
+        if os.path.exists(readfname) == False:
+            readfname = funcs.get_filepath('gm_label_'+str(counter)+'.myjson','20160224_041836')
+            file = open(readfname,'r')
+            file_size = os.stat(readfname)[6]
+            line_indexes = []
+            try:
+                f = funcs.get_fileobj('picked_ignore_'+str(counter)+'.myjson','w','20160224_041836')
+                while True:
+                    file.seek((file.tell()+random.randint(0,file_size-1))%file_size)
+        ##            中途半端な部分を無視
+                    file.readline()
+                    line = file.readline()
+                    index = file.tell()
+                    if has_index(line_indexes,index)==False:
+                        line_indexes.append(index)
+    ##                    ファイルに書き込み
+                        f.write(line)
+                        try:
+                            dd = json.loads(line)
+                            if has_allkey(keys,dd):
+                                for key_index in range(len(keys)):                            
+                                    data[key_index].extend(dd[keys[key_index]])
+                ##            最小データ数にそろえる．各クラスタから1364310*6=8185860ずつ取得
+##                                    メモリリークしてしまうので1364310/5=272862に変更
+                            if len(data[0])>=272862:
+                                break
+                        except:
+                            pass
+            finally:
+                f.close()
+            file.close()
+
+#all_dataを取得
+def get_all_data_ignore():
+    all_data = [[],[],[],[]]
+    keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
+    for counter in range(5):
+        print('--------',counter,'--------')
+        data = [[],[],[],[]]
+        readfname = funcs.get_filepath('picked_ignore_'+str(counter)+'.myjson','20160224_041836')
+        file = open(readfname,'r')
+        line = file.readline()
+        while line:
+            try:
+                dd = json.loads(line)
+                if has_allkey(keys,dd):
+                    for key_index in range(len(keys)):
+                        data[key_index].extend(dd[keys[key_index]])
+            except:
+                pass
+            line = file.readline()
+        file.close()
         
+    ##        読み込みが完了したら、900000番目までを取得
+        for i in range(len(data)):
+            all_data[i].extend(data[i][:272862])
+    return all_data
+
+def make_regresson_model(darray,model_name,model_str):
+##    カテゴリ毎にテスト
+    models = []
+    scores = []
+
+    f = funcs.get_fileobj(model_str+'.csv','w',model_str)
+    writer = csv.writer(f)
+    array_a = []
+    array_p = []
+    errors = []
+    
+    ##        k-foldはXを説明変数，yを目的変数とする
+    X = darray[:3].transpose()
+    y = darray[3]
+##        http://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.StandardScaler.html#sklearn.preprocessing.StandardScaler
+    scaler_exp = StandardScaler().fit(X)
+    X = scaler_exp.transform(X)
+    scaler_ret = StandardScaler().fit(y)
+    y = scaler_ret.transform(y)
+    joblib.dump(scaler_exp, funcs.get_filepath('exp_'+model_name+'_'+model_str+'.pkl',os.path.join('scaler',model_str)))
+    joblib.dump(scaler_ret, funcs.get_filepath('ret_'+model_name+'_'+model_str+'.pkl',os.path.join('scaler',model_str)))
+    
+    train_data,test_data,train_label,test_label = cross_validation.train_test_split(
+    X,y,test_size=0.5,random_state=1)
+    if model_str in 'nn': 
+        model = MLPRegressor(hidden_layer_sizes=83,alpha=0.1)
+    elif model_str in 'rf': 
+        model = RandomForestRegressor(max_features='log2')
+    elif model_str in 'svm': 
+       model = PassiveAggressiveRegressor()
+    else:
+        print('model_str', model_str,'ERROR!!!!')
+        exit(-1)
+        
+    model.fit(train_data,train_label)
+    joblib.dump(model, funcs.get_filepath(model_name+'_'+model_str+'.pkl',os.path.join('model',model_str)))
+    pred = model.predict(test_data)
+    models.append(model)
+    print(r2_score(test_label,pred))
+    writer.writerow(np.array(test_label).transpose())
+    writer.writerow(np.array(pred).transpose())
+    array_a.extend(np.array(test_label))
+    array_p.extend(np.array(pred))
+##        print("r2:"+str(np.mean(result[0])))
+##        print("evs:"+str(np.mean(result[1])))
+##        print("mae:"+str(np.mean(result[2])))
+    print(np.array(scores))
+
+##    図の描画
+    fig = plt.figure()
+    plt.plot(array_a[:500], 'r')
+    plt.plot(array_p[:500], 'k--')
+    plt.savefig(funcs.get_filepath('image_'+model_name+'_'+model_str+'.png',model_str))
+    f.close()
+    return models
+
+#all_dataをファイルから作成
+def make_all_data_dual(keys):
+    climb_cat = ['FLAT', 'CATEGORY4',  'CATEGORY3', 'CATEGORY2' ,'CATEGORY1','HORS_CATEGORIE']
+    for cat in climb_cat:
+        for counter in range(5):
+            print('--------',counter,'--------')
+            data = [[],[],[],[]]
+            writefname = funcs.get_filepath('picked_dual_'+cat+'_'+str(counter)+'.myjson','20160224_041836')
+            if os.path.exists(writefname) == False:
+                readfname = funcs.get_filepath('gm_label_'+str(counter)+'.myjson','20160224_041836')
+                file = open(readfname,'r')
+                file_size = os.stat(readfname)[6]
+                line_indexes = []
+                try:
+                    f = open(writefname,'w')
+                    while True:
+##                全部必要でない場合はランダム取得                            
+                        if cat != 'CATEGORY1' and counter != 2:
+                            file.seek((file.tell()+random.randint(0,file_size-1))%file_size)
+                ##            中途半端な部分を無視
+                            file.readline()
+                        line = file.readline()
+                        index = file.tell()
+
+##                        一度読み込んだ行ならスキップ
+                        if has_index(line_indexes,index)==True:
+                            continue
+                        
+                        line_indexes.append(index)
+                        try:
+                            dd = json.loads(line)
+##                            Altitudeが無いことがある
+                            if has_allkey(keys,dd)==False:
+                                continue
+##                            クライムカテゴリが違うなら
+                            if cat != dd['climbCategory']:
+                                continue
+                            for key_index in range(len(keys)):
+                                data[key_index].extend(dd[keys[key_index]])
+                                ##                    ファイルに書き込み
+                            f.write(line)
+                            ##            最小データ数にそろえる．1364310ずつ取得
+                            if len(data[0])>=1364310:
+                                break
+                        except:
+                            pass
+                finally:
+                    f.close()
+                file.close()
+            
+#all_dataを取得
+def get_all_data_dual(keys,cluster):
+    all_data = {}
+    climb_cat = ['FLAT', 'CATEGORY4',  'CATEGORY3', 'CATEGORY2' ,'CATEGORY1','HORS_CATEGORIE']
+    for cat in climb_cat:     
+        name = cat+'_'+str(cluster)
+        print('--------',name,'--------')
+        data = [[],[],[],[]]
+        readfname = funcs.get_filepath('picked_dual_'+name+'.myjson','20160224_041836')
+        file = open(readfname,'r')
+        line = file.readline()
+        while line:
+            dd = json.loads(line)
+            for key_index in range(len(keys)):
+                data[key_index].extend(dd[keys[key_index]])
+            line = file.readline()
+        file.close()
+        
+    ##        読み込みが完了したら、1364310番目までを取得
+        for i in range(len(data)):
+            data[i] = data[i][:1364310]
+        all_data[name]=data
+                
+    return all_data
 
 ##[climbCategory][label][data]
 ##--------------プログラム開始------------------
@@ -472,46 +727,32 @@ if __name__ == '__main__':
     starttime = funcs.start_program()
     np.random.seed(1)
     random.seed(1)
+
+##    show_data()
+##    joint_alldata('gm_label',starttime.strftime("%Y%m%d_%H%M%S"))
+    keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
+
+##    全部混ぜたやつ
+##    make_all_data_ignore()
+##    all_data_ignore = get_all_data_ignore()
+##    models = make_regresson_model(np.array(all_data_ignore),'ignore_','rf')
+
+
+##全部ばらばらのやつ
+    make_all_data_dual(keys)
+    for cluster in range(5):
+        all_data_dual = get_all_data_dual(keys,cluster)
+        for data_key in all_data_dual.keys():
+            print('process:',data_key)
+            model = make_regresson_model(np.array(all_data_dual[data_key]),'dual_'+data_key,'rf')
     
-##    クラスタリング手法とラベルに基づいて最大person_num人分のデータを取得
-    km_range = np.array(range(9)).astype(np.str)
-    gm_range = np.array(range(5)).astype(np.str)
-    fig_list = []
-    actdata_joint = {}
-    for label in gm_range:
-        data_users=[]
-        label_str = 'km_label'
-        label_str = 'gm_label'
-        person_num = 30
-        ##データ点数を指定
-        min_datanum = 10000
-        data_users = preparation_data(label_str,label,person_num,min_datanum,False)
-
-        ##取得対象のデータ
-        keys = ['GRADE','DISTANCE','ALTITUDE','VELOCITY']
-        ##最低データ点数を指定
-        keyss = data_users.keys()
-        actdata_dict = get_data_eachuser(data_users,keys,min_datanum)
-        align_data_eachuser(actdata_dict,keys,min_datanum)
-
-##        各ラベルのデータを6個ずつ取得
-        key = list(actdata_dict.keys())
-        random.shuffle(key)
-        
-        for i in range(5):
-            print(key[i])
-            actdata_joint[key[i]] = actdata_dict[key[i]]
-        print(len(actdata_joint.keys()))
-        
-    print(actdata_joint.keys())
-##    models = regresson_category(actdata_dict,keys)
-
-####       モデル作った後のやつ
-##        for_pred = get_a_data(list(actdata_dict.keys()),label,label_str)
 ##
-##        d = a_data_to_testdata(for_pred ,keys )
-##        X = scale(d[:3].transpose())
-##        y = scale(d[3].transpose())
-####        pred = model.predict(X)
-####        print(r2_score(y,pred))
+######       モデル作った後のやつ
+####        for_pred = get_a_data(list(actdata_dict.keys()),label,label_str)
+####
+####        d = a_data_to_testdata(for_pred ,keys )
+####        X = scale(d[:3].transpose())
+####        y = scale(d[3].transpose())
+######        pred = model.predict(X)
+######        print(r2_score(y,pred))
     funcs.end_program()
